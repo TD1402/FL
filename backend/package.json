@@ -1,0 +1,12 @@
+{
+  "name": "flower-shop-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev/server.mjs",
+    "dev:reset": "node dev/server.mjs --reset",
+    "test": "node --test dev/api.test.mjs",
+    "push": "clasp push",
+    "deploy": "clasp push && clasp deploy"
+  }
+}

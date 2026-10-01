@@ -1,0 +1,137 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-serif: 'Cormorant Garamond', ui-serif, Georgia, serif;
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #111111;
+  --color-muted: #6b6b6b;
+  --color-line: #e5e5e5;
+  --color-cream: #f7f5f2;
+  --color-mist: #f3f2f0;
+  --color-accent: #c8576b;
+  --color-accent-dark: #a9445a;
+
+  --tracking-caps: 0.14em;
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-white font-sans text-[15px] leading-relaxed text-ink antialiased;
+    overflow-x: hidden;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-serif font-medium;
+  }
+  button {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 1px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+  [v-cloak] {
+    display: none;
+  }
+}
+
+@utility container-x {
+  @apply mx-auto w-full max-w-[1440px] px-4 md:px-8 lg:px-12;
+}
+@utility caps {
+  @apply text-xs uppercase tracking-[var(--tracking-caps)];
+}
+@utility section {
+  @apply py-10 md:py-16 lg:py-24;
+}
+@utility section-title {
+  @apply text-center font-serif text-2xl uppercase tracking-[0.12em] md:text-[32px];
+}
+/* Kích thước nút ở layer components để utility (h-9 px-4...) ghi đè được */
+@layer components {
+  .btn,
+  .btn-primary,
+  .btn-outline {
+    height: 3rem;
+    padding-inline: 2rem;
+  }
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 px-8 text-xs font-medium uppercase tracking-[var(--tracking-caps)] transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-ink text-white hover:bg-[#333];
+}
+@utility btn-outline {
+  @apply btn border border-ink bg-white text-ink hover:bg-ink hover:text-white;
+}
+@utility link-caps {
+  @apply caps inline-block border-b border-ink pb-0.5 transition-colors hover:border-accent hover:text-accent;
+}
+@utility input {
+  @apply h-12 w-full rounded-none border border-line bg-white px-4 text-sm outline-none transition-colors placeholder:text-[#a3a3a3] focus:border-ink;
+  &:is(textarea) {
+    @apply h-auto py-3;
+  }
+}
+@utility input-error {
+  @apply border-accent;
+}
+@utility label {
+  @apply mb-1.5 block text-xs uppercase tracking-[0.1em] text-muted;
+}
+@utility skeleton {
+  @apply animate-pulse bg-mist;
+}
+@utility prose-shop {
+  & p {
+    @apply mb-3;
+  }
+  & ul {
+    @apply mb-3 list-disc pl-5;
+  }
+  & h3 {
+    @apply mb-2 mt-6 text-xl;
+  }
+}
+
+/* Swiper: ẩn nút điều hướng mặc định, dùng nút tuỳ chỉnh */
+.swiper-button-disabled {
+  @apply pointer-events-none opacity-0;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s var(--ease-soft);
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.slide-right-enter-active,
+.slide-right-leave-active,
+.slide-left-enter-active,
+.slide-left-leave-active {
+  transition: transform 0.3s var(--ease-soft);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+.slide-left-enter-from,
+.slide-left-leave-to {
+  transform: translateX(-100%);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
