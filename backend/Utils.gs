@@ -149,15 +149,16 @@ function cachePutJson_(key, value, ttl) {
 }
 
 function withCache_(key, fn) {
-  const hit = cacheGetJson_(key);
+  const k = key + ':' + CACHE_VERSION;
+  const hit = cacheGetJson_(k);
   if (hit !== null) return hit;
   const value = fn();
-  cachePutJson_(key, value);
+  cachePutJson_(k, value);
   return value;
 }
 
 function clearCache_() {
-  CacheService.getScriptCache().removeAll(CACHE_KEYS);
+  CacheService.getScriptCache().removeAll(CACHE_KEYS.map(function (k) { return k + ':' + CACHE_VERSION; }));
 }
 
 /* ---------------------------- Lock ---------------------------- */
@@ -229,6 +230,16 @@ function removeAccents_(s) {
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D')
     .toLowerCase();
+}
+
+/**
+ * Link ảnh Google Drive (uc?export=view&id=, open?id=, file/d/ID/view) không nhúng được vào <img>
+ * (Google trả 403) → đổi sang lh3.googleusercontent.com. File phải chia sẻ "Bất kỳ ai có đường liên kết".
+ */
+function normalizeImageUrl_(url) {
+  const s = String(url || '').trim();
+  const m = s.match(/(?:drive|docs)\.google\.com\/(?:uc\?(?:[^#]*&)?id=|open\?(?:[^#]*&)?id=|file\/d\/)([\w-]{20,})/);
+  return m ? 'https://lh3.googleusercontent.com/d/' + m[1] + '=w1000' : s;
 }
 
 function slugify_(s) {

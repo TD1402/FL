@@ -188,6 +188,15 @@ test('admin: login, phân quyền, CRUD, đổi trạng thái đơn', () => {
   assert.equal(dash.revenueByDay.length, 14)
 })
 
+test('link ảnh Google Drive được đổi sang lh3', () => {
+  const n = gas.context.normalizeImageUrl_
+  const lh3 = 'https://lh3.googleusercontent.com/d/1lllDxD00Ks9um6UEAugNMX7IwDeUInbP=w1000'
+  assert.equal(n('https://drive.google.com/uc?export=view&id=1lllDxD00Ks9um6UEAugNMX7IwDeUInbP'), lh3)
+  assert.equal(n('https://drive.google.com/open?id=1lllDxD00Ks9um6UEAugNMX7IwDeUInbP'), lh3)
+  assert.equal(n('https://drive.google.com/file/d/1lllDxD00Ks9um6UEAugNMX7IwDeUInbP/view?usp=sharing'), lh3)
+  assert.equal(n('https://images.unsplash.com/photo-1?w=1'), 'https://images.unsplash.com/photo-1?w=1')
+})
+
 test('đổi mật khẩu và đăng xuất', () => {
   assert.equal(gas.post({ action: 'adminChangePassword', token, data: { oldPassword: 'x', newPassword: '12345678' } }).success, false)
   ok(gas.post({ action: 'adminChangePassword', token, data: { oldPassword: 'HoaMoc@2026', newPassword: 'MatKhauMoi1' } }))

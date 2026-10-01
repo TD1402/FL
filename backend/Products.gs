@@ -6,7 +6,7 @@
 function parseProduct_(row) {
   const p = Object.assign({}, row);
   p.category_ids = splitList_(row.category_ids);
-  p.images = splitList_(row.images);
+  p.images = splitList_(row.images).map(normalizeImageUrl_);
   p.colors = splitList_(row.colors);
   p.flowers = splitList_(row.flowers);
   p.tags = splitList_(row.tags);

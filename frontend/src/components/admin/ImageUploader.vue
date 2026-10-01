@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { uploadImage } from '@/api/admin'
 import { toast } from '@/composables/useToast'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import { resizeImage } from '@/utils/product'
 
 /** Danh sách URL ảnh: upload nhiều file lên Drive, thêm URL ngoài, sắp xếp, xoá. */
 const images = defineModel({ type: Array, default: () => [] })
@@ -55,7 +56,7 @@ function move(i, d) {
         :key="img + i"
         class="group relative h-32 w-24 overflow-hidden border border-line bg-mist"
       >
-        <img :src="img" alt="" class="h-full w-full object-cover" />
+        <img :src="resizeImage(img, 300)" alt="" class="h-full w-full object-cover" />
         <span v-if="i === 0 && multiple" class="absolute left-1 top-1 bg-ink px-1.5 text-[10px] text-white"
           >Ảnh chính</span
         >

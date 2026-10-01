@@ -86,6 +86,7 @@ function cleanItem_(resource, item, existing) {
     it.name = requireText_(it.name, 'tên sản phẩm', 200);
     it.slug = uniqueSlug_(SHEETS.PRODUCTS, slugify_(it.slug || it.name), existing && existing.id);
     if (!it.sku) it.sku = 'HM' + String(Date.now()).slice(-6);
+    if ('images' in it) it.images = splitList_(it.images).map(normalizeImageUrl_);
     ['category_ids', 'images', 'colors', 'flowers', 'tags'].forEach(function (k) {
       if (k in it) it[k] = splitList_(it[k]).join(',');
     });
@@ -107,10 +108,12 @@ function cleanItem_(resource, item, existing) {
     it.name = requireText_(it.name, 'tên danh mục', 100);
     it.slug = uniqueSlug_(SHEETS.CATEGORIES, slugify_(it.slug || it.name), existing && existing.id);
     if (existing && it.parent_id === existing.id) throw new Error('Danh mục cha không hợp lệ');
+    it.image = normalizeImageUrl_(it.image);
   }
 
   if (resource === 'banners') {
-    it.image = requireText_(it.image, 'ảnh banner', 1000);
+    it.image = normalizeImageUrl_(requireText_(it.image, 'ảnh banner', 1000));
+    it.image_mobile = normalizeImageUrl_(it.image_mobile);
     if (['hero', 'promo', 'collection'].indexOf(it.position) < 0) it.position = 'hero';
   }
 

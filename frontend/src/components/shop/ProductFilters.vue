@@ -28,6 +28,11 @@ const COLOR_HEX = {
   Xanh: '#7fa8c9',
   Kem: '#efe3cf',
   Nâu: '#8a6a4f',
+  'Đỏ thẫm': '#7a1f2b',
+  'Xanh bạc': '#a9b8b3',
+  'Xanh lá': '#6f9a5b',
+  'Hồng phấn': '#f2c4cc',
+  'Tím pastel': '#c3b1e1',
 }
 const colors = computed(() => props.facets.colors || [])
 const flowers = computed(() => props.facets.flowers || [])

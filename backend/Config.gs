@@ -95,6 +95,8 @@ const PREP_HOURS = 2;
 const PRIVATE_SETTINGS = ['notify_email'];
 
 const CACHE_TTL = 600; // giây
+/** Tăng khi đổi cấu trúc dữ liệu trả về → cache của bản deploy cũ tự bị bỏ qua. */
+const CACHE_VERSION = 'v2';
 const CACHE_KEYS = ['products_all', 'categories_all', 'settings_all', 'banners_all'];
 const TOKEN_TTL_DAYS = 7;
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;

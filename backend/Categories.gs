@@ -6,6 +6,7 @@ function getActiveCategories_() {
   return withCache_('categories_all', function () {
     return getSheetData(SHEETS.CATEGORIES)
       .filter(function (c) { return c.is_active; })
+      .map(function (c) { return Object.assign(c, { image: normalizeImageUrl_(c.image) }); })
       .sort(function (a, b) { return a.sort_order - b.sort_order; });
   });
 }

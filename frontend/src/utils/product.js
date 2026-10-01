@@ -28,9 +28,18 @@ export function fromPrice(p) {
   return finalPrice(p)
 }
 
+/** Link Google Drive (uc?id= / open?id= / file/d/ID) → lh3.googleusercontent.com (nhúng được vào <img>). */
+export function driveToLh3(url) {
+  const m = String(url || '').match(
+    /(?:drive|docs)\.google\.com\/(?:uc\?(?:[^#]*&)?id=|open\?(?:[^#]*&)?id=|file\/d\/)([\w-]{20,})/,
+  )
+  return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w1000` : url
+}
+
 /** Đổi URL ảnh sang kích thước nhỏ hơn (Unsplash / Google) để tiết kiệm băng thông. */
 export function resizeImage(url, width) {
   if (!url) return ''
+  url = driveToLh3(url)
   if (url.includes('images.unsplash.com')) {
     const u = new URL(url)
     const ratio = Number(u.searchParams.get('h')) / Number(u.searchParams.get('w')) || 0
