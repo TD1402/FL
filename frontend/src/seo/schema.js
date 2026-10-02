@@ -48,7 +48,7 @@ export function productDescription(p, shopName) {
 
 /** Ảnh chia sẻ: kích thước lớn, URL tuyệt đối. */
 export function shareImage(url) {
-  return url ? resizeImage(url, 1200) : ''
+  return url ? resizeImage(url, 1200, { proxy: false }) : ''
 }
 
 /* ------------------------------ JSON-LD ------------------------------- */
@@ -166,7 +166,7 @@ export function productSchema(p, siteUrl, shopName) {
     '@id': url + '#product',
     name: p.name,
     sku: p.sku,
-    image: (p.images || []).map((u) => resizeImage(u, 1200)),
+    image: (p.images || []).map((u) => resizeImage(u, 1200, { proxy: false })),
     description: truncate(p.short_desc || stripHtml(p.description), 5000),
     brand: { '@type': 'Brand', name: shopName },
     color: p.colors?.join(', ') || undefined,

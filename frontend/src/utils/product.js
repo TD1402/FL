@@ -36,8 +36,27 @@ export function driveToLh3(url) {
   return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w1000` : url
 }
 
-/** Đổi URL ảnh sang kích thước nhỏ hơn (Unsplash / Google) để tiết kiệm băng thông. */
-export function resizeImage(url, width) {
+const LH3_ID_RE = /lh3\.googleusercontent\.com\/d\/([\w-]{20,})/
+const SIZE_BUCKETS = [400, 800, 1200, 1600]
+/** Làm tròn lên vài mức cố định → ít URL khác nhau, tận dụng cache trình duyệt/CDN. */
+const bucket = (w) => SIZE_BUCKETS.find((b) => b >= w) || SIZE_BUCKETS[SIZE_BUCKETS.length - 1]
+/** Proxy ảnh Drive qua wsrv.nl (cache Cloudflare, resize, WebP). Tắt: VITE_IMAGE_PROXY=off */
+const USE_PROXY = import.meta.env?.VITE_IMAGE_PROXY !== 'off'
+
+/**
+ * Ảnh Google Drive nhúng trực tiếp (lh3.googleusercontent.com/d/…) bị Google giới hạn lượt tải (429).
+ * Đi qua proxy có cache: mỗi ảnh chỉ tải từ Drive một lần (bản gốc w1600), proxy tự resize.
+ */
+export function driveProxy(id, width) {
+  const origin = encodeURIComponent(`https://lh3.googleusercontent.com/d/${id}=w1600`)
+  return `https://wsrv.nl/?url=${origin}&w=${bucket(width)}&we&output=webp&q=80`
+}
+
+/**
+ * Đổi URL ảnh sang kích thước phù hợp (Unsplash / Google Drive) để tiết kiệm băng thông.
+ * @param {{proxy?: boolean}} [opts] proxy=false: luôn trả link Google gốc (dùng cho og:image, JSON-LD, sitemap)
+ */
+export function resizeImage(url, width, { proxy = USE_PROXY } = {}) {
   if (!url) return ''
   url = driveToLh3(url)
   if (url.includes('images.unsplash.com')) {
@@ -47,6 +66,13 @@ export function resizeImage(url, width) {
     if (ratio) u.searchParams.set('h', String(Math.round(width * ratio)))
     return u.toString()
   }
-  if (url.includes('googleusercontent.com/d/')) return url.replace(/=w\d+$/, '') + `=w${width}`
+  const m = url.match(LH3_ID_RE)
+  if (m)
+    return proxy ? driveProxy(m[1], width) : `https://lh3.googleusercontent.com/d/${m[1]}=w${bucket(width)}`
   return url
+}
+
+/** Link ảnh Google trực tiếp (không proxy) — dùng làm dự phòng khi proxy lỗi. */
+export function directImage(url, width) {
+  return resizeImage(url, width, { proxy: false })
 }

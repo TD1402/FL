@@ -143,6 +143,7 @@ Có thể bật proxy Vite khi dev bằng `VITE_USE_PROXY=true`, nhưng producti
   - Route không prerender (giỏ hàng, admin…) dùng `app.html` làm fallback (đã cấu hình trong `vercel.json`, `public/_redirects`).
 - **Admin → Cài đặt → SEO**: tiêu đề, mô tả mặc định, ảnh chia sẻ mặc định (`og_image`, 1200×630).
 - Sau khi deploy: khai báo `https://<tên-miền>/sitemap.xml` trong Google Search Console; kiểm tra bằng Rich Results Test và Facebook Sharing Debugger.
+- **Ảnh Google Drive**: link `drive.google.com/uc?…` bị Google chặn nhúng (403), còn `lh3.googleusercontent.com` bị giới hạn lượt tải (429). Vì vậy frontend tải ảnh Drive qua proxy cache [wsrv.nl](https://wsrv.nl) (Cloudflare): mỗi ảnh chỉ lấy từ Drive một lần, proxy tự resize và chuyển WebP. Nếu proxy lỗi, ảnh tự tải lại từ link Google trực tiếp. Tắt proxy bằng `VITE_IMAGE_PROXY=off`. Ảnh chia sẻ (og:image), JSON-LD và sitemap vẫn dùng link Google gốc. Nếu lượng truy cập lớn, nên chuyển ảnh sang CDN riêng (Cloudinary, ImageKit…).
 - Không nên dùng `VITE_ROUTER_MODE=hash` (GitHub Pages) nếu cần SEO: URL dạng `/#/…` không được index riêng từng trang.
 
 ---

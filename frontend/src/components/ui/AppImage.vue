@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { resizeImage } from '@/utils/product'
+import { directImage, resizeImage } from '@/utils/product'
 
 /**
  * Ảnh lazy-load có skeleton + ảnh dự phòng khi lỗi.
@@ -17,15 +17,31 @@ const props = defineProps({
 
 const loaded = ref(false)
 const failed = ref(false)
+/** 0: URL chuẩn (có thể qua proxy) · 1: link Google trực tiếp · 2: thử lại lần cuối sau 2s */
+const attempt = ref(0)
 watch(
   () => props.src,
   () => {
     loaded.value = false
     failed.value = false
+    attempt.value = 0
   },
 )
 
-const url = computed(() => resizeImage(props.src, props.width))
+const url = computed(() => {
+  const primary = resizeImage(props.src, props.width)
+  if (attempt.value === 0) return primary
+  const direct = directImage(props.src, props.width)
+  return attempt.value === 2 ? `${direct}${direct.includes('?') ? '&' : '?'}r=1` : direct
+})
+
+function onError() {
+  const direct = directImage(props.src, props.width)
+  if (attempt.value === 0 && direct !== resizeImage(props.src, props.width)) attempt.value = 1
+  else if (attempt.value <= 1 && direct.includes('googleusercontent'))
+    setTimeout(() => (attempt.value = 2), 2000)
+  else failed.value = true
+}
 const [rw, rh] = (props.ratio || '3/4').split('/').map(Number)
 </script>
 
@@ -50,7 +66,7 @@ const [rw, rh] = (props.ratio || '3/4').split('/').map(Number)
       class="h-full w-full object-cover transition-opacity duration-300"
       :class="[loaded ? 'opacity-100' : 'opacity-0', imgClass]"
       @load="loaded = true"
-      @error="failed = true"
+      @error="onError"
     />
   </div>
 </template>

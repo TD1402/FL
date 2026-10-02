@@ -398,7 +398,10 @@ async function main() {
     .map((p) => {
       const images = (p.images || [])
         .slice(0, 5)
-        .map((u) => `\n    <image:image><image:loc>${esc(resizeImage(u, 1200))}</image:loc></image:image>`)
+        .map(
+          (u) =>
+            `\n    <image:image><image:loc>${esc(resizeImage(u, 1200, { proxy: false }))}</image:loc></image:image>`,
+        )
         .join('')
       return `  <url>\n    <loc>${esc(joinUrl(SITE, p.path))}</loc>\n    <lastmod>${String(p.lastmod || today).slice(0, 10)}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>${images}\n  </url>`
     })
