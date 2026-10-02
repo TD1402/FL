@@ -35,6 +35,7 @@ const empty = () => ({
 const form = ref(empty())
 const loading = ref(!!props.id)
 const saving = ref(false)
+const uploadingImages = ref(false)
 const loadError = ref('')
 const preview = ref(false)
 
@@ -157,7 +158,17 @@ async function save() {
 
         <section class="border border-line bg-white p-5">
           <p class="label mb-3">Hình ảnh * (ảnh đầu tiên là ảnh chính, ảnh thứ 2 hiện khi hover)</p>
-          <ImageUploader v-model="form.images" />
+          <ImageUploader
+            v-model="form.images"
+            :folder="slugPreview"
+            :product-id="id || ''"
+            :locked-reason="
+              slugPreview
+                ? ''
+                : 'Nhập tên sản phẩm trước khi tải ảnh — ảnh được lưu vào thư mục Drive theo tên sản phẩm.'
+            "
+            @busy="uploadingImages = $event"
+          />
         </section>
 
         <section class="space-y-4 border border-line bg-white p-5">
@@ -233,8 +244,8 @@ async function save() {
             ><input v-model="form.is_best_seller" type="checkbox" class="h-4 w-4 accent-ink" /> Bán
             chạy</label
           >
-          <button class="btn-primary mt-2 w-full" :disabled="saving">
-            {{ saving ? 'Đang lưu…' : 'Lưu sản phẩm' }}
+          <button class="btn-primary mt-2 w-full" :disabled="saving || uploadingImages">
+            {{ uploadingImages ? 'Đang tải ảnh…' : saving ? 'Đang lưu…' : 'Lưu sản phẩm' }}
           </button>
           <a
             v-if="id && form.slug"

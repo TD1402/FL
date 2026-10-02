@@ -1,40 +1,109 @@
 <script setup>
-import { ref } from 'vue'
-import { uploadImage } from '@/api/admin'
+import { onBeforeUnmount, ref, watch } from 'vue'
+import { importImageUrl, uploadImage } from '@/api/admin'
 import { toast } from '@/composables/useToast'
 import AppIcon from '@/components/ui/AppIcon.vue'
-import { resizeImage } from '@/utils/product'
+import DrivePicker from './DrivePicker.vue'
+import { driveToLh3, resizeImage } from '@/utils/product'
 
-/** Danh sách URL ảnh: upload nhiều file lên Drive, thêm URL ngoài, sắp xếp, xoá. */
+/**
+ * Danh sách URL ảnh: upload nhiều file lên Drive (song song, có ảnh xem trước), thêm URL ngoài, sắp xếp, xoá.
+ * Phát sự kiện `busy` (true/false) để form khoá nút Lưu khi đang tải ảnh.
+ */
 const images = defineModel({ type: Array, default: () => [] })
-const props = defineProps({ multiple: { type: Boolean, default: true } })
-const uploading = ref(0)
-const urlInput = ref('')
+const props = defineProps({
+  multiple: { type: Boolean, default: true },
+  /** Thư mục con trong thư mục ảnh Drive của shop: ảnh upload vào đây, picker mở sẵn thư mục này */
+  folder: { type: String, default: '' },
+  /** Lý do chưa cho upload (vd chưa có tên sản phẩm → chưa biết thư mục) — hiện thông báo, khoá upload */
+  lockedReason: { type: String, default: '' },
+  /** Sản phẩm đang sửa: ảnh vào thư mục đang chứa ảnh hiện có của sản phẩm (nếu có) */
+  productId: { type: String, default: '' },
+})
+const pickerOpen = ref(false)
+const emit = defineEmits(['busy'])
+const CONCURRENCY = 3
+const MAX_BYTES = 15 * 1024 * 1024
 
+/** Ảnh đang tải: { key, preview (object URL), name } */
+const pending = ref([])
+const urlInput = ref('')
+watch(
+  () => pending.value.length > 0,
+  (v) => emit('busy', v),
+)
+onBeforeUnmount(() =>
+  pending.value.forEach((p) => p.preview.startsWith('blob:') && URL.revokeObjectURL(p.preview)),
+)
+
+let seq = 0
 async function onFiles(e) {
-  const files = Array.from(e.target.files || [])
+  const files = Array.from(e.target.files || []).filter((f) => {
+    if (f.size <= MAX_BYTES) return true
+    toast.error(`${f.name}: ảnh quá lớn (tối đa 15MB)`)
+    return false
+  })
   e.target.value = ''
-  for (const file of props.multiple ? files : files.slice(0, 1)) {
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error(`${file.name}: ảnh quá lớn (tối đa 10MB)`)
-      continue
-    }
-    uploading.value++
-    try {
-      const r = await uploadImage(file)
-      images.value = props.multiple ? [...images.value, r.url] : [r.url]
-    } catch {
-      /* toast đã hiển thị */
-    } finally {
-      uploading.value--
+  const batch = (props.multiple ? files : files.slice(0, 1)).map((file) => ({
+    key: ++seq,
+    file,
+    name: file.name,
+    preview: URL.createObjectURL(file),
+  }))
+  if (!batch.length) return
+  pending.value = [...pending.value, ...batch]
+
+  // Upload song song (tối đa CONCURRENCY), giữ đúng thứ tự đã chọn khi thêm vào danh sách
+  const results = new Array(batch.length).fill(null)
+  let next = 0
+  const started = Date.now()
+  const worker = async () => {
+    while (next < batch.length) {
+      const i = next++
+      try {
+        results[i] = (
+          await uploadImage(batch[i].file, { folder: props.folder, productId: props.productId })
+        ).url
+      } catch {
+        /* toast đã hiển thị lỗi */
+      }
     }
   }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batch.length) }, worker))
+
+  const urls = results.filter(Boolean)
+  if (urls.length) images.value = props.multiple ? [...images.value, ...urls] : [urls[0]]
+  const keys = new Set(batch.map((b) => b.key))
+  batch.forEach((b) => URL.revokeObjectURL(b.preview))
+  pending.value = pending.value.filter((p) => !keys.has(p.key))
+  if (urls.length > 1)
+    toast.success(`Đã tải ${urls.length} ảnh (${((Date.now() - started) / 1000).toFixed(1)}s)`)
 }
-function addUrl() {
+/** Ảnh chọn từ Drive: thêm (bỏ trùng) theo thứ tự đã chọn */
+function onPick(urls) {
+  if (!props.multiple) return (images.value = urls.slice(0, 1))
+  const id = (u) => String(u).match(/\/d\/([\w-]{20,})/)?.[1] || u
+  const have = new Set(images.value.map(id))
+  images.value = [...images.value, ...urls.filter((u) => !have.has(id(u)))]
+}
+/** Dán link: link Drive dùng luôn; link web khác → backend tải về lưu vào Drive (mọi ảnh đều nằm trên Drive). */
+async function addUrl() {
   const u = urlInput.value.trim()
   if (!/^https?:\/\//.test(u)) return toast.error('URL ảnh phải bắt đầu bằng http(s)://')
-  images.value = props.multiple ? [...images.value, u] : [u]
   urlInput.value = ''
+  const add = (url) => (images.value = props.multiple ? [...images.value, url] : [url])
+  const drive = driveToLh3(u)
+  if (drive !== u || /lh3\.googleusercontent\.com\/d\//.test(u)) return add(drive)
+  const item = { key: ++seq, name: u, preview: u }
+  pending.value = [...pending.value, item]
+  try {
+    add((await importImageUrl(u, props.folder, props.productId)).url)
+    toast.success('Đã lưu ảnh vào Google Drive')
+  } catch {
+    /* toast đã hiển thị lỗi */
+  } finally {
+    pending.value = pending.value.filter((p) => p.key !== item.key)
+  }
 }
 function remove(i) {
   images.value = images.value.filter((_, j) => j !== i)
@@ -74,9 +143,21 @@ function move(i, d) {
           </button>
         </div>
       </div>
-      <div v-for="n in uploading" :key="'u' + n" class="skeleton h-32 w-24" />
+      <div
+        v-for="p in pending"
+        :key="'u' + p.key"
+        class="relative h-32 w-24 overflow-hidden border border-line bg-mist"
+        :title="p.name"
+      >
+        <img :src="p.preview" alt="" class="h-full w-full object-cover opacity-50" />
+        <span class="absolute inset-0 flex items-center justify-center">
+          <span class="h-6 w-6 animate-spin rounded-full border-2 border-ink/20 border-t-ink" />
+        </span>
+      </div>
       <label
-        class="flex h-32 w-24 cursor-pointer flex-col items-center justify-center gap-1 border border-dashed border-ink/30 text-xs text-muted hover:border-ink"
+        class="flex h-32 w-24 flex-col items-center justify-center gap-1 border border-dashed border-ink/30 text-xs text-muted"
+        :class="lockedReason ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:border-ink'"
+        :title="lockedReason"
       >
         <AppIcon name="upload" :size="18" />
         Tải ảnh
@@ -84,19 +165,45 @@ function move(i, d) {
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
           :multiple="multiple"
+          :disabled="!!lockedReason"
           class="hidden"
           @change="onFiles"
         />
       </label>
+      <button
+        type="button"
+        class="flex h-32 w-24 flex-col items-center justify-center gap-1 border border-dashed border-ink/30 text-xs text-muted hover:border-ink"
+        @click="pickerOpen = true"
+      >
+        <AppIcon name="image" :size="18" />
+        Chọn từ Drive
+      </button>
     </div>
+    <DrivePicker
+      v-model:open="pickerOpen"
+      :multiple="multiple"
+      :folder="folder"
+      :product-id="productId"
+      :existing="images"
+      @select="onPick"
+    />
+    <p v-if="lockedReason" class="mt-2 text-xs text-accent">{{ lockedReason }}</p>
+    <p v-else-if="folder" class="mt-2 text-xs text-muted">
+      Ảnh tải lên được lưu vào
+      <template v-if="productId">thư mục Drive đang chứa ảnh của sản phẩm (chưa có thì</template>
+      thư mục <b>{{ folder }}/</b><template v-if="productId">)</template>.
+    </p>
     <div class="mt-3 flex max-w-xl">
       <input
         v-model="urlInput"
+        :disabled="!!lockedReason"
         class="input h-10"
-        placeholder="Hoặc dán URL ảnh…"
+        placeholder="Hoặc dán link ảnh (Drive hoặc web — tự lưu vào Drive)…"
         @keydown.enter.prevent="addUrl"
       />
-      <button type="button" class="btn-outline h-10 shrink-0 px-4" @click="addUrl">Thêm</button>
+      <button type="button" class="btn-outline h-10 shrink-0 px-4" :disabled="!!lockedReason" @click="addUrl">
+        Thêm
+      </button>
     </div>
   </div>
 </template>

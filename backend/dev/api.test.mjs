@@ -7,6 +7,8 @@ import { createGas } from './gas-emulator.mjs'
 
 const gas = createGas()
 gas.run('setup')
+const DRIVE_A = 'https://lh3.googleusercontent.com/d/1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=w1000'
+const DRIVE_B = 'https://drive.google.com/uc?export=view&id=1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 
 const ok = (r) => {
   assert.equal(r.success, true, r.error)
@@ -163,11 +165,11 @@ test('admin: login, phân quyền, CRUD, đổi trạng thái đơn', () => {
   const created = ok(
     gas.post({
       action: 'adminSave', token,
-      data: { resource: 'products', item: { name: 'Bó hồng đỏ Mãi Yêu', price: 100000, images: ['a', 'b'], sizes: [{ name: 'S', price: 1 }], category_ids: 'c11' } },
+      data: { resource: 'products', item: { name: 'Bó hồng đỏ Mãi Yêu', price: 100000, images: [DRIVE_A, DRIVE_B], sizes: [{ name: 'S', price: 1 }], category_ids: 'c11' } },
     }),
   )
   assert.equal(created.slug, 'bo-hong-do-mai-yeu-2')
-  assert.deepEqual(created.images, ['a', 'b'])
+  assert.deepEqual(created.images, [DRIVE_A, 'https://lh3.googleusercontent.com/d/1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=w1000'])
   const updated = ok(gas.post({ action: 'adminSave', token, data: { resource: 'products', item: { id: created.id, price: 120000 } } }))
   assert.equal(updated.price, 120000)
   assert.equal(updated.name, 'Bó hồng đỏ Mãi Yêu')
@@ -188,6 +190,15 @@ test('admin: login, phân quyền, CRUD, đổi trạng thái đơn', () => {
   assert.equal(dash.revenueByDay.length, 14)
 })
 
+test('warmCache dựng lại cache; memo cập nhật đúng sau khi ghi', () => {
+  gas.run('warmCache')
+  assert.ok(ok(gas.get({ action: 'getProducts' })).total > 0)
+  gas.context._sheetMemo && gas.run('adjustStock_', [{ product_id: 'p001', qty: 1 }, { product_id: 'p001', qty: 2 }], -1)
+  const p = gas.context.findBy('Products', 'id', 'p001')
+  const fresh = (() => { gas.run('setup'); return gas.context.findBy('Products', 'id', 'p001') })()
+  assert.equal(p.stock, fresh.stock)
+})
+
 test('link ảnh Google Drive được đổi sang lh3', () => {
   const n = gas.context.normalizeImageUrl_
   const lh3 = 'https://lh3.googleusercontent.com/d/1lllDxD00Ks9um6UEAugNMX7IwDeUInbP=w1000'
@@ -195,6 +206,142 @@ test('link ảnh Google Drive được đổi sang lh3', () => {
   assert.equal(n('https://drive.google.com/open?id=1lllDxD00Ks9um6UEAugNMX7IwDeUInbP'), lh3)
   assert.equal(n('https://drive.google.com/file/d/1lllDxD00Ks9um6UEAugNMX7IwDeUInbP/view?usp=sharing'), lh3)
   assert.equal(n('https://images.unsplash.com/photo-1?w=1'), 'https://images.unsplash.com/photo-1?w=1')
+})
+
+test('upload vào thư mục con theo slug & duyệt ảnh Drive', () => {
+  const token = ok(gas.post({ action: 'adminLogin', data: { username: 'admin', password: 'HoaMoc@2026' } })).token
+  const img = { mimeType: 'image/jpeg', base64: '/9j/4AAQSkZJRg==' }
+  ok(gas.post({ action: 'uploadImage', token, data: { ...img, filename: 'b.jpg', folder: 'Hồng chùm Redcharm' } }))
+  ok(gas.post({ action: 'uploadImage', token, data: { ...img, filename: 'a.jpg', folder: 'hong-chum-redcharm' } }))
+  ok(gas.post({ action: 'uploadImage', token, data: { ...img, filename: 'root.jpg' } }))
+
+  const root = ok(gas.post({ action: 'listDriveImages', token, data: {} }))
+  const sub = root.folders.find((f) => f.name === 'hong-chum-redcharm')
+  assert.ok(sub, 'tạo đúng 1 thư mục con theo slug')
+  assert.equal(root.folders.filter((f) => f.name === 'hong-chum-redcharm').length, 1)
+  assert.ok(root.folders.some((f) => f.name === 'chua-phan-loai'), 'ảnh không có slug → chua-phan-loai')
+  assert.ok(!root.images.some((i) => i.name.endsWith('root')), 'không để ảnh lẫn ở thư mục gốc')
+
+  const inSub = ok(gas.post({ action: 'listDriveImages', token, data: { folderId: sub.id } }))
+  assert.equal(inSub.images.length, 2)
+  assert.deepEqual(inSub.path.map((x) => x.name), [root.folder.name, 'hong-chum-redcharm'])
+  assert.match(inSub.images[0].url, /^https:\/\/lh3\.googleusercontent\.com\/d\/.+=w1000$/)
+
+  // Không cho duyệt thư mục ngoài phạm vi
+  const outside = gas.context.DriveApp.createFolder('khac').getId()
+  assert.equal(gas.post({ action: 'listDriveImages', token, data: { folderId: outside } }).success, false)
+})
+
+test('đăng nhập lại → token cũ hết hiệu lực ngay (kể cả khi đang cache)', () => {
+  const t1 = ok(gas.post({ action: 'adminLogin', data: { username: 'admin', password: 'HoaMoc@2026' } })).token
+  ok(gas.post({ action: 'adminMe', token: t1 })) // đưa t1 vào cache
+  const t2 = ok(gas.post({ action: 'adminLogin', data: { username: 'admin', password: 'HoaMoc@2026' } })).token
+  assert.equal(gas.post({ action: 'adminMe', token: t1 }).error, 'UNAUTHORIZED')
+  ok(gas.post({ action: 'adminMe', token: t2 }))
+  token = t2
+})
+
+test('mọi ảnh nằm trên Drive: setup chuyển ảnh mẫu, lưu link ngoài tự tải vào Drive', () => {
+  const nonDrive = (urls) => urls.filter((u) => u && !/^https:\/\/lh3\.googleusercontent\.com\/d\//.test(u))
+  const banners = ok(gas.get({ action: 'getBanners' }))
+  assert.deepEqual(nonDrive(banners.flatMap((b) => [b.image, b.image_mobile])), [])
+  const cats = ok(gas.get({ action: 'getCategories' })).flatMap((c) => [c, ...c.children])
+  assert.deepEqual(nonDrive(cats.map((c) => c.image)), [])
+  const prods = ok(gas.get({ action: 'getProducts', limit: 60 })).items
+  assert.deepEqual(nonDrive(prods.flatMap((p) => p.images)), [])
+  assert.ok(gas.fetches.some((u) => u.includes('fm=jpg') && !u.includes('auto=format')), 'Unsplash tải dạng JPEG')
+
+  // Chạy lại: không tải thêm gì
+  const n = gas.fetches.length
+  const again = gas.run('migrateImagesToDrive')
+  assert.equal(again.imported, 0)
+  assert.equal(gas.fetches.length, n)
+
+  const t = ok(gas.post({ action: 'adminLogin', data: { username: 'admin', password: 'HoaMoc@2026' } })).token
+  const saved = ok(gas.post({ action: 'adminSave', token: t, data: { resource: 'banners', item: { title: 'X', image: 'https://example.com/a.jpg', position: 'promo' } } }))
+  assert.match(saved.image, /^https:\/\/lh3\.googleusercontent\.com\/d\/\w+=w1000$/)
+  const banner = ok(gas.post({ action: 'listDriveImages', token: t, data: {} })).folders.find((f) => f.name === 'banner')
+  assert.ok(banner, 'ảnh banner nằm trong thư mục banner/')
+
+  assert.match(gas.post({ action: 'importImageUrl', token: t, data: { url: 'https://example.com/notimage' } }).error, /không phải ảnh/)
+  assert.match(gas.post({ action: 'importImageUrl', token: t, data: { url: 'https://example.com/missing.jpg' } }).error, /404/)
+  assert.match(gas.post({ action: 'importImageUrl', token: t, data: { url: 'javascript:alert(1)' } }).error, /không hợp lệ/)
+  const imp = ok(gas.post({ action: 'importImageUrl', token: t, data: { url: DRIVE_B, folder: 'x' } }))
+  assert.equal(imp.url, 'https://lh3.googleusercontent.com/d/1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=w1000')
+  token = t
+})
+
+test('ảnh luôn vào thư mục gốc đúng, không slug → chua-phan-loai; sắp xếp lại ảnh đặt sai', () => {
+  const ctx = gas.context
+  const t = ok(gas.post({ action: 'adminLogin', data: { username: 'admin', password: 'HoaMoc@2026' } })).token
+  token = t
+  const img = { mimeType: 'image/jpeg', base64: '/9j/4AAQSkZJRg==' }
+  const root = ctx.getRootFolder_()
+  const folderOf = (url) => ctx.DriveApp.getFileById(url.match(/d\/(\w+)/)[1]).getParents().next()
+
+  // Tình huống thật: bản cũ tạo "FlowerShop Images" ở My Drive + lưu DRIVE_FOLDER_ID
+  const legacy = ctx.DriveApp.createFolder('FlowerShop Images')
+  ctx.setProp_('DRIVE_FOLDER_ID', legacy.getId())
+  assert.equal(ctx.getRootFolder_().getId(), root.getId(), 'bỏ qua DRIVE_FOLDER_ID cũ')
+
+  // Upload không có slug → chua-phan-loai (không lẫn ở thư mục gốc)
+  const loose = ok(gas.post({ action: 'uploadImage', token: t, data: { ...img, filename: 'x.jpg' } })).url
+  assert.equal(folderOf(loose).getName(), 'chua-phan-loai')
+  assert.equal(folderOf(loose).getParents().next().getId(), root.getId())
+
+  // Ảnh sản phẩm bị đặt sai (nằm trong FlowerShop Images) + thư mục banner cũ
+  const misplaced = legacy.createFile(ctx.Utilities.newBlob([1, 2, 3], 'image/jpeg', 'sai.jpg')).getId()
+  legacy.createFolder('banner').createFile(ctx.Utilities.newBlob([1], 'image/jpeg', 'bn.jpg'))
+  const orphan = legacy.createFile(ctx.Utilities.newBlob([1], 'image/jpeg', 'mo-coi.jpg')).getId()
+  // Ảnh bạn tự sắp xếp ở thư mục con khác → phải giữ nguyên
+  const curated = root.createFolder('scabiosa-tim').createFile(ctx.Utilities.newBlob([1], 'image/jpeg', 'giu.jpg')).getId()
+  ctx.updateRowById('Products', 'p001', {
+    images: [`https://lh3.googleusercontent.com/d/${misplaced}=w1000`, `https://lh3.googleusercontent.com/d/${curated}=w1000`, loose].join(','),
+  })
+
+  const r = ok(gas.post({ action: 'reorganizeImages', token: t }))
+  assert.ok(r.moved >= 2)
+  const at = (fid) => ctx.DriveApp.getFileById(fid).getParents().next()
+  // Sản phẩm đã có ảnh trong thư mục do shop tự đặt (scabiosa-tim) → ảnh lạc được gom về đó
+  assert.equal(at(misplaced).getName(), 'scabiosa-tim')
+  assert.equal(at(misplaced).getParents().next().getId(), root.getId())
+  assert.equal(folderOf(loose).getName(), 'scabiosa-tim', 'ảnh trong chua-phan-loai của sản phẩm cũng được xếp đúng')
+  assert.equal(at(curated).getName(), 'scabiosa-tim', 'không đụng ảnh đã sắp xếp')
+  assert.equal(at(orphan).getName(), 'chua-phan-loai', 'ảnh không thuộc sản phẩm nào → chua-phan-loai')
+  const rootSubs = ok(gas.post({ action: 'listDriveImages', token: t, data: {} })).folders.map((f) => f.name)
+  assert.ok(rootSubs.includes('banner'))
+  assert.equal(rootSubs.filter((n) => n === 'banner').length, 1, 'gộp banner/ trùng tên')
+  assert.equal(ctx.getProp_('DRIVE_FOLDER_ID'), '', 'xoá property cũ')
+})
+
+test('upload cho sản phẩm có sẵn → vào thư mục đang chứa ảnh của nó (giữ cách đặt tên của shop)', () => {
+  const ctx = gas.context
+  const t = token
+  const root = ctx.getRootFolder_()
+  const own = root.createFolder('bach-dan') // tên thư mục do shop tự đặt, khác slug
+  const fid = own.createFile(ctx.Utilities.newBlob([1], 'image/jpeg', 'co-san.jpg')).getId()
+  ctx.updateRowById('Products', 'p005', { images: `https://lh3.googleusercontent.com/d/${fid}=w1000` })
+  const img = { mimeType: 'image/jpeg', base64: '/9j/4AAQSkZJRg==', filename: 'moi.jpg' }
+  const up = ok(gas.post({ action: 'uploadImage', token: t, data: { ...img, folder: 'ten-khac', productId: 'p005' } })).url
+  assert.equal(ctx.DriveApp.getFileById(up.match(/d\/(\w+)/)[1]).getParents().next().getName(), 'bach-dan')
+  const list = ok(gas.post({ action: 'listDriveImages', token: t, data: { productId: 'p005' } }))
+  assert.equal(list.folder.name, 'bach-dan')
+  // Sản phẩm mới (chưa có id) → theo slug
+  const up2 = ok(gas.post({ action: 'uploadImage', token: t, data: { ...img, folder: 'san-pham-moi' } })).url
+  assert.equal(ctx.DriveApp.getFileById(up2.match(/d\/(\w+)/)[1]).getParents().next().getName(), 'san-pham-moi')
+})
+
+test('Google từ chối setSharing: thư mục đã công khai → upload vẫn thành công; chưa công khai → báo lỗi rõ', () => {
+  const img = { mimeType: 'image/jpeg', base64: '/9j/4AAQSkZJRg==', filename: 'a.jpg', folder: 'x' }
+  gas.driveSettings.setSharingFails = true
+  gas.context.CacheService.getScriptCache().remove('root_public')
+  const err = gas.post({ action: 'uploadImage', token, data: img }).error
+  assert.match(err, /Bất kỳ ai có đường liên kết/)
+
+  gas.driveSettings.rootSharing = 'ANYONE_WITH_LINK'
+  gas.context.CacheService.getScriptCache().remove('root_public')
+  assert.match(ok(gas.post({ action: 'uploadImage', token, data: img })).url, /^https:\/\/lh3/)
+  gas.driveSettings.setSharingFails = false
 })
 
 test('đổi mật khẩu và đăng xuất', () => {

@@ -1,6 +1,7 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-import { adminChangePassword, adminList, adminSave } from '@/api/admin'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { adminChangePassword, adminList, adminSave, migrateImages, reorganizeImages } from '@/api/admin'
+import ImageUploader from '@/components/admin/ImageUploader.vue'
 import { useSettingsStore } from '@/stores/settings'
 import { toast } from '@/composables/useToast'
 
@@ -51,6 +52,7 @@ const GROUPS = [
       ['seo_title', 'Tiêu đề mặc định', true],
       ['seo_description', 'Mô tả mặc định', true],
       ['og_image', 'Ảnh chia sẻ mặc định (Facebook/Zalo, 1200×630)', true],
+      ['about_image', 'Ảnh trang Giới thiệu', true],
     ],
   },
 ]
@@ -81,6 +83,59 @@ async function save() {
     /* toast */
   } finally {
     saving.value = false
+  }
+}
+
+/** Các cài đặt là ảnh → chọn/upload qua Google Drive (thư mục trang/) */
+const IMAGE_KEYS = ['og_image', 'about_image']
+const imageModel = (key) =>
+  computed({
+    get: () => (form[key] ? [form[key]] : []),
+    set: (v) => (form[key] = v[0] || ''),
+  })
+const imageModels = Object.fromEntries(IMAGE_KEYS.map((k) => [k, imageModel(k)]))
+const uploadingImages = ref(false)
+
+const migrating = ref(false)
+const migrateResult = ref(null)
+const organizing = ref(false)
+const organizeResult = ref(null)
+async function runOrganize() {
+  organizing.value = true
+  organizeResult.value = null
+  try {
+    organizeResult.value = await reorganizeImages()
+    toast.success('Đã sắp xếp lại ảnh trên Drive')
+  } catch {
+    /* toast */
+  } finally {
+    organizing.value = false
+  }
+}
+
+async function runMigrate() {
+  if (
+    !confirm(
+      'Chuyển mọi ảnh chưa nằm trên Google Drive (banner, danh mục, sản phẩm, cài đặt, đơn hàng) vào thư mục ảnh của shop và cập nhật Sheet?',
+    )
+  )
+    return
+  migrating.value = true
+  migrateResult.value = null
+  try {
+    migrateResult.value = await migrateImages()
+    const s = await adminList('settings')
+    Object.assign(form, s.items[0] || {})
+    await store.load(true)
+    toast.success(
+      migrateResult.value.done
+        ? 'Đã chuyển xong ảnh vào Drive'
+        : 'Đã chuyển một phần — bấm chạy lại để tiếp tục',
+    )
+  } catch {
+    /* toast */
+  } finally {
+    migrating.value = false
   }
 }
 
@@ -117,14 +172,21 @@ function exportSubscribers() {
           <div class="grid gap-4 sm:grid-cols-2">
             <div v-for="[key, label, full] in g.fields" :key="key" :class="{ 'sm:col-span-2': full }">
               <label class="label" :for="key">{{ label }}</label>
-              <textarea v-if="full" :id="key" v-model="form[key]" rows="2" class="input" />
+              <ImageUploader
+                v-if="IMAGE_KEYS.includes(key)"
+                v-model="imageModels[key].value"
+                :multiple="false"
+                folder="trang"
+                @busy="uploadingImages = $event"
+              />
+              <textarea v-else-if="full" :id="key" v-model="form[key]" rows="2" class="input" />
               <input v-else :id="key" v-model="form[key]" class="input" />
             </div>
           </div>
         </section>
         <div class="sticky bottom-4 flex justify-end">
-          <button class="btn-primary shadow-lg" :disabled="saving">
-            {{ saving ? 'Đang lưu…' : 'Lưu cài đặt' }}
+          <button class="btn-primary shadow-lg" :disabled="saving || uploadingImages">
+            {{ uploadingImages ? 'Đang tải ảnh…' : saving ? 'Đang lưu…' : 'Lưu cài đặt' }}
           </button>
         </div>
       </form>
@@ -155,6 +217,35 @@ function exportSubscribers() {
           />
           <button class="btn-outline h-10 px-5">Đổi mật khẩu</button>
         </form>
+        <section class="border border-line bg-white p-5 md:col-span-2">
+          <p class="caps mb-2 font-medium">Ảnh trên Google Drive</p>
+          <p class="text-sm text-muted">
+            Mọi ảnh của shop được lưu trong thư mục Google Drive (sản phẩm theo thư mục slug, banner/,
+            danh-muc/, trang/). Ảnh dán từ web sẽ tự được tải vào Drive. Bấm nút dưới để chuyển các ảnh cũ
+            chưa nằm trên Drive và cập nhật Sheet.
+          </p>
+          <button class="btn-outline mr-2 mt-4 h-10 px-5" :disabled="organizing" @click="runOrganize">
+            {{ organizing ? 'Đang sắp xếp…' : 'Sắp xếp ảnh vào thư mục sản phẩm' }}
+          </button>
+          <button class="btn-outline mt-4 h-10 px-5" :disabled="migrating" @click="runMigrate">
+            {{ migrating ? 'Đang chuyển ảnh… (có thể mất vài phút)' : 'Chuyển tất cả ảnh vào Drive' }}
+          </button>
+          <p v-if="organizeResult" class="mt-3 text-sm">
+            Đã chuyển <b>{{ organizeResult.moved }}</b> ảnh và {{ organizeResult.foldersMoved }} thư mục về
+            đúng chỗ.
+            <span v-for="e in organizeResult.errors" :key="e" class="mt-1 block text-xs text-accent">{{
+              e
+            }}</span>
+          </p>
+          <p v-if="migrateResult" class="mt-3 text-sm">
+            Đã tải vào Drive <b>{{ migrateResult.imported }}</b> ảnh · chuẩn hoá
+            {{ migrateResult.normalized }} link · cập nhật {{ migrateResult.rowsUpdated }} dòng
+            <span v-if="!migrateResult.done" class="text-accent"> — chưa xong, hãy bấm chạy lại.</span>
+            <span v-for="e in migrateResult.errors" :key="e" class="mt-1 block text-xs text-accent">{{
+              e
+            }}</span>
+          </p>
+        </section>
         <section class="border border-line bg-white p-5">
           <p class="caps mb-2 font-medium">Email đăng ký nhận tin</p>
           <p class="text-3xl">{{ subscribers.length }}</p>

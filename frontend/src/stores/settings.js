@@ -13,7 +13,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function load(force = false) {
     if ((loaded.value && !force) || (loading && !force)) return loading || Promise.resolve()
-    loading = Promise.all([getSettings(), getCategories()])
+    loading = Promise.all([
+      getSettings((s) => (data.value = s || {})),
+      getCategories((c) => (categories.value = c || [])),
+    ])
       .then(([s, c]) => {
         data.value = s || {}
         categories.value = c || []

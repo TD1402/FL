@@ -368,7 +368,7 @@ async function main() {
       ogTitle: sp.title,
       h1: sp.title,
       description: truncate(stripHtml(html)),
-      image: sp.image,
+      image: sp.imageSetting ? settings[sp.imageSetting] : '',
       crumbs,
       content: html,
       jsonLd: [breadcrumbSchema(crumbs, SITE)],

@@ -36,7 +36,8 @@ function saveSettings_(item) {
   Object.keys(item).forEach(function (rawKey) {
     const key = str_(rawKey, 100);
     if (!/^[a-z0-9_]+$/.test(key)) return;
-    const value = str_(item[rawKey], 5000);
+    let value = str_(item[rawKey], 5000);
+    if (IMAGE_SETTINGS.indexOf(key) >= 0) value = ensureDriveImage_(value, IMAGE_FOLDERS.settings);
     if (existing[key]) updateRowById(SHEETS.SETTINGS, key, { value: value });
     else appendRow(SHEETS.SETTINGS, { key: key, value: value });
   });

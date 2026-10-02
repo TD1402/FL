@@ -1,4 +1,5 @@
 import { apiPost, clearGetCache } from './client'
+import { prepareImage } from '@/utils/imageEncode'
 
 export const adminLogin = (username, password) => apiPost('adminLogin', { username, password })
 export const adminLogout = () => apiPost('adminLogout', {}, { silent: true })
@@ -27,32 +28,26 @@ export async function updateOrderStatus(id, patch) {
 }
 export const getDashboard = () => apiPost('getDashboard')
 
-/** Đọc file ảnh → base64 → upload lên Drive qua GAS. Ảnh lớn được thu nhỏ trước (≤ 1600px). */
-export async function uploadImage(file) {
-  const { base64, mimeType } = await shrinkImage(file, 1600)
-  return apiPost('uploadImage', { filename: file.name, mimeType, base64 })
+/** Nén ảnh ở trình duyệt (JPEG ≤ 1600px) → base64 → upload lên Drive qua GAS. */
+/** @param {File} file @param {{folder?: string}} [opts] folder: thư mục con trong thư mục ảnh của shop (vd slug sản phẩm) */
+export async function uploadImage(file, { folder = '', productId = '' } = {}) {
+  const { base64, mimeType } = await prepareImage(file, 1600)
+  return apiPost('uploadImage', { filename: file.name, mimeType, base64, folder, productId })
 }
 
-function shrinkImage(file, maxSize) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = () => reject(new Error('Không đọc được file'))
-    reader.onload = () => {
-      const dataUrl = String(reader.result)
-      if (file.type === 'image/gif') return resolve({ base64: dataUrl.split(',')[1], mimeType: file.type })
-      const img = new Image()
-      img.onerror = () => reject(new Error('File không phải ảnh hợp lệ'))
-      img.onload = () => {
-        const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
-        const canvas = document.createElement('canvas')
-        canvas.width = Math.round(img.width * scale)
-        canvas.height = Math.round(img.height * scale)
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
-        resolve({ base64: canvas.toDataURL(mimeType, 0.88).split(',')[1], mimeType })
-      }
-      img.src = dataUrl
-    }
-    reader.readAsDataURL(file)
-  })
+/** Link ảnh bất kỳ → backend tải về & lưu vào Drive → trả link Drive. */
+export const importImageUrl = (url, folder = '', productId = '') =>
+  apiPost('importImageUrl', { url, folder, productId })
+/** Chuyển mọi ảnh ngoài Drive đang có trong Sheet vào Drive (chạy lại được). */
+export async function migrateImages() {
+  const r = await apiPost('migrateImages')
+  clearGetCache()
+  return r
 }
+
+/** Đưa ảnh đặt sai chỗ về đúng thư mục sản phẩm trên Drive. */
+export const reorganizeImages = () => apiPost('reorganizeImages')
+
+/** Duyệt ảnh trong thư mục Drive của shop. folderId trống = thư mục gốc. */
+export const listDriveImages = (folderId = '', productId = '') =>
+  apiPost('listDriveImages', { folderId, productId })

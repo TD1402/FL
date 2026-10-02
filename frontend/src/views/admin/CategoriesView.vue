@@ -37,6 +37,7 @@ const fields = computed(() => [
 <template>
   <ResourceManager
     resource="categories"
+    upload-folder="danh-muc"
     title="Danh mục"
     item-label="danh mục"
     :columns="columns"

@@ -73,7 +73,7 @@ clasp push
 | Key | Bắt buộc | Mô tả |
 |---|---|---|
 | `SPREADSHEET_ID` | Không* | ID của Sheet. *Bỏ trống nếu script gắn với Sheet (container-bound). |
-| `DRIVE_FOLDER_ID` | Không | Thư mục Drive lưu ảnh upload. Bỏ trống → tự tạo “FlowerShop Images”. |
+| `DRIVE_FOLDER_ID` | Không | Thư mục Drive chứa ảnh của shop. Mặc định `DEFAULT_DRIVE_FOLDER_ID` trong `Config.gs`. Ảnh sản phẩm được upload vào thư mục con theo slug, banner vào `banner/`, danh mục vào `danh-muc/`. Trong admin, nút **Chọn từ Drive** cho phép duyệt và chọn ảnh có sẵn trong thư mục này. |
 | `ADMIN_PASSWORD` | Nên có | Mật khẩu admin dùng khi chạy `setup()` lần đầu (≥ 8 ký tự). |
 | `TELEGRAM_BOT_TOKEN` | Không | Bot token để báo đơn mới qua Telegram. |
 | `TELEGRAM_CHAT_ID` | Không | Chat/Group ID nhận thông báo. |
@@ -87,6 +87,16 @@ Chạy lại an toàn: sheet đã có dữ liệu sẽ không bị ghi đè.
 
 - Mật khẩu admin = `ADMIN_PASSWORD`, hoặc `HoaMoc@2026` nếu chưa đặt. **Đổi ngay** trong Admin → Cài đặt.
 - Quên mật khẩu: đặt lại `ADMIN_PASSWORD` rồi chạy hàm `resetAdminPassword`.
+
+### Tăng tốc API: cài trigger làm nóng cache (khuyến nghị)
+
+Mỗi request Apps Script luôn tốn khoảng 1–1,5 giây chi phí nền tảng. Lần nào phải đọc Sheet thì mất thêm 1–2 giây nữa. Hãy chạy hàm **`installTriggers`** (file `Triggers.gs`) **một lần** trong trình soạn thảo và cấp quyền. Hàm này tạo hai trigger:
+- `onSheetEdit`: khi sửa trực tiếp trên Google Sheet, cache được dựng lại ngay.
+- `warmCache`: cứ 10 phút dựng lại cache một lần, để khách không bao giờ phải chờ đọc Sheet.
+
+Sau đó cache được giữ tối đa 6 giờ. Gỡ trigger bằng `uninstallTriggers`.
+
+Ở frontend, dữ liệu GET được lưu trên trình duyệt (stale-while-revalidate): mở lại trang thì hiện ngay, dữ liệu mới được tải ngầm và tự cập nhật. Sản phẩm được tải trước khi rê chuột hoặc chạm vào.
 
 ### Deploy Web App
 

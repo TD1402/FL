@@ -14,10 +14,20 @@ import NewsletterForm from '@/components/shop/NewsletterForm.vue'
 
 const settings = useSettingsStore()
 
-const banners = useAsync(() => getBanners(), { immediate: true, initial: [] })
-const newest = useAsync(() => getProducts({ isNew: true, limit: 10 }, { silent: true }), { immediate: true })
+const banners = useAsync(() => getBanners(undefined, (fresh) => (banners.data.value = fresh)), {
+  immediate: true,
+  initial: [],
+})
+const newest = useAsync(
+  () => getProducts({ isNew: true, limit: 10 }, { silent: true, onUpdate: (r) => (newest.data.value = r) }),
+  { immediate: true },
+)
 const best = useAsync(
-  () => getProducts({ isBestSeller: true, sort: 'best_seller', limit: 10 }, { silent: true }),
+  () =>
+    getProducts(
+      { isBestSeller: true, sort: 'best_seller', limit: 10 },
+      { silent: true, onUpdate: (r) => (best.data.value = r) },
+    ),
   {
     immediate: true,
   },

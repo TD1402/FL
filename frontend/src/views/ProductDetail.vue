@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { getProduct } from '@/api/shop'
+import { getProduct, peekProduct } from '@/api/shop'
 import { useCartStore } from '@/stores/cart'
 import { useWishlistStore } from '@/stores/wishlist'
 import { useSettingsStore } from '@/stores/settings'
@@ -37,21 +37,39 @@ const deliverySlot = ref(cart.delivery.slot)
 const cardMessage = ref(cart.delivery.card_message)
 const tab = ref('desc')
 
-async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    const r = await getProduct(props.slug)
-    product.value = r.product
-    related.value = r.related
+/** Đủ dữ liệu chi tiết (có mô tả) hay mới chỉ là bản tóm tắt từ danh sách. */
+const detailLoaded = ref(false)
+
+function apply(r, { keepSelection = false } = {}) {
+  product.value = r.product
+  related.value = r.related
+  detailLoaded.value = true
+  if (!keepSelection || !r.product.sizes?.some((s) => s.name === size.value))
     size.value = r.product.sizes?.[0]?.name || ''
-    qty.value = 1
-    tab.value = 'desc'
+}
+
+let seq = 0
+async function load() {
+  const id = ++seq
+  error.value = ''
+  detailLoaded.value = false
+  qty.value = 1
+  tab.value = 'desc'
+  // Hiện ngay bản tóm tắt từ danh sách (nếu có) trong lúc chờ API chi tiết
+  const preview = peekProduct(props.slug)
+  product.value = preview
+  related.value = []
+  size.value = preview?.sizes?.[0]?.name || ''
+  loading.value = !preview
+  try {
+    const r = await getProduct(props.slug, (fresh) => id === seq && apply(fresh, { keepSelection: true }))
+    if (id === seq) apply(r, { keepSelection: !!preview })
   } catch (e) {
+    if (id !== seq) return
     error.value = e.message
     product.value = null
   } finally {
-    loading.value = false
+    if (id === seq) loading.value = false
   }
 }
 watch(() => props.slug, load, { immediate: true })
@@ -256,7 +274,12 @@ function addToCart(buyNow = false) {
               </button>
             </div>
             <div class="prose-shop py-6 text-sm leading-relaxed text-[#333]">
-              <div v-if="tab === 'desc'" v-html="product.description || '<p>Đang cập nhật.</p>'" />
+              <div v-if="!detailLoaded" class="space-y-2">
+                <div class="skeleton h-4 w-full" />
+                <div class="skeleton h-4 w-5/6" />
+                <div class="skeleton h-4 w-2/3" />
+              </div>
+              <div v-else-if="tab === 'desc'" v-html="product.description || '<p>Đang cập nhật.</p>'" />
               <div v-else-if="tab === 'flowers'">
                 <p><b>Thành phần:</b> {{ product.flowers.join(', ') || 'Đang cập nhật' }}</p>
                 <p v-if="product.colors.length"><b>Tông màu:</b> {{ product.colors.join(', ') }}</p>

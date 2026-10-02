@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { prefetchProduct } from '@/api/shop'
 import { useCartStore } from '@/stores/cart'
 import { useWishlistStore } from '@/stores/wishlist'
 import { toast } from '@/composables/useToast'
@@ -18,6 +19,14 @@ const percent = computed(() => discountPercent(p.value))
 const soldOut = computed(() => p.value.stock !== undefined && p.value.stock <= 0)
 const hasSizes = computed(() => p.value.sizes?.length > 0)
 
+// Tải trước chi tiết khi người dùng có ý định mở (hover desktop / chạm mobile)
+let prefetched = false
+function prefetch() {
+  if (prefetched) return
+  prefetched = true
+  prefetchProduct(p.value.slug)
+}
+
 function addToCart() {
   if (soldOut.value) return
   const size = hasSizes.value ? p.value.sizes[0].name : ''
@@ -28,7 +37,7 @@ function addToCart() {
 </script>
 
 <template>
-  <article class="group relative">
+  <article class="group relative" @pointerenter="prefetch" @touchstart.passive="prefetch">
     <RouterLink :to="link" class="relative block overflow-hidden rounded-[2px]">
       <AppImage :src="p.images?.[0]" :alt="p.name" ratio="3/4" :width="600" :eager="eager" />
       <AppImage

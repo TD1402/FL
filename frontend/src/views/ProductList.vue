@@ -140,13 +140,18 @@ async function load(p = 1) {
   loading.value = true
   error.value = ''
   if (p === 1) items.value = []
-  try {
-    const r = await getProducts(buildParams(p), { silent: true })
-    if (id !== seq) return
+  const apply = (r) => {
     items.value = p === 1 ? r.items : [...items.value, ...r.items]
     total.value = r.total
     page.value = r.page
     if (p === 1) facets.value = r.facets || {}
+  }
+  // Dữ liệu mới từ nền (stale-while-revalidate): chỉ thay khi vẫn đang xem trang 1 của cùng bộ lọc
+  const onUpdate = (r) => id === seq && page.value === 1 && p === 1 && apply(r)
+  try {
+    const r = await getProducts(buildParams(p), { silent: true, onUpdate })
+    if (id !== seq) return
+    apply(r)
   } catch (e) {
     if (id === seq) error.value = e.message
   } finally {

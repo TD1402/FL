@@ -40,6 +40,8 @@ function adminLogin(data) {
 
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
   const expires = new Date(Date.now() + TOKEN_TTL_DAYS * 86400000).toISOString();
+  // Mỗi tài khoản 1 phiên: token cũ hết hiệu lực ngay (kể cả bản đang nằm trong cache)
+  if (admin.token) cache.remove('admin_tok_' + admin.token);
   updateRowById(SHEETS.ADMINS, username, { token: token, token_expires: expires });
   return { token: token, expires: expires, username: username, role: admin.role };
 }
@@ -48,14 +50,19 @@ function adminLogin(data) {
 function requireAdmin_(token) {
   const t = String(token || '');
   if (t.length < 32) throw new Error('UNAUTHORIZED');
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('admin_tok_' + t);
+  if (cached) return JSON.parse(cached);
   const admin = findBy(SHEETS.ADMINS, 'token', t);
   if (!admin || !admin.token_expires || new Date(admin.token_expires).getTime() < Date.now()) {
     throw new Error('UNAUTHORIZED');
   }
+  cache.put('admin_tok_' + t, JSON.stringify(admin), 600);
   return admin;
 }
 
 function adminLogout(admin) {
+  CacheService.getScriptCache().remove('admin_tok_' + admin.token);
   updateRowById(SHEETS.ADMINS, admin.username, { token: '', token_expires: '' });
   return true;
 }
@@ -66,5 +73,6 @@ function adminChangePassword(data, admin) {
   const pw = String(data.newPassword || '');
   if (pw.length < 8) throw new Error('Mật khẩu mới phải có ít nhất 8 ký tự');
   updateRowById(SHEETS.ADMINS, admin.username, { password_hash: hashPassword_(pw) });
+  CacheService.getScriptCache().remove('admin_tok_' + admin.token);
   return true;
 }

@@ -5,8 +5,7 @@
 export const STATIC_PAGES = {
   about: {
     title: 'Giới thiệu',
-    image:
-      'https://images.unsplash.com/photo-1487530811176-3780de880c2d?auto=format&fit=crop&w=1600&h=900&q=80',
+    imageSetting: 'about_image', // ảnh lấy từ Settings (lưu trên Drive)
     html: `
       <p>{shop} bắt đầu từ một xưởng hoa nhỏ với niềm tin rằng mỗi bó hoa là một lời nhắn gửi. Chúng tôi chọn hoa tươi mỗi sáng từ các nhà vườn Đà Lạt và hoa nhập khẩu, cắm thủ công theo phong cách tối giản, tinh tế.</p>
       <h3>Điều chúng tôi cam kết</h3>

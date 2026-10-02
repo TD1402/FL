@@ -70,8 +70,18 @@ function updateRowById(name, id, patch) {
   getSheet_(name)
     .getRange(row.__row, 1, 1, data.headers.length)
     .setValues([data.headers.map(function (h) { return toCell_(name, h, merged[h]); })]);
-  delete _sheetMemo[name];
-  return merged;
+  // Cập nhật bộ nhớ tạm tại chỗ → lần đọc tiếp trong cùng request không phải đọc lại cả sheet.
+  data.headers.forEach(function (h) { if (h) row[h] = memoValue_(name, h, merged[h]); });
+  return Object.assign({}, row);
+}
+
+/** Giá trị như khi đọc lại từ sheet (dùng để cập nhật memo sau khi ghi). */
+function memoValue_(sheet, field, v) {
+  const type = fieldType_(sheet, field);
+  if (type === 'number') return Math.round(Number(v) || 0);
+  if (type === 'bool') return toBool_(v);
+  if (v === null || v === undefined) return '';
+  return typeof v === 'object' ? JSON.stringify(v) : String(v);
 }
 
 /** Giá trị từ sheet → JS (số, boolean, chuỗi; Date → chuỗi ISO theo múi giờ script). */
@@ -130,27 +140,35 @@ function cacheGetJson_(key) {
   }
 }
 
+function cacheTtl_() {
+  return getProp_('TRIGGERS_INSTALLED') ? CACHE_TTL_WITH_TRIGGERS : CACHE_TTL;
+}
+
 function cachePutJson_(key, value, ttl) {
   const c = CacheService.getScriptCache();
+  ttl = ttl || cacheTtl_();
   const s = JSON.stringify(value);
   try {
     if (s.length <= CACHE_CHUNK) {
-      c.put(key, s, ttl || CACHE_TTL);
+      c.put(key, s, ttl);
       return;
     }
     const map = {};
     const n = Math.ceil(s.length / CACHE_CHUNK);
     for (let i = 0; i < n; i++) map[key + '_' + i] = s.substr(i * CACHE_CHUNK, CACHE_CHUNK);
-    c.putAll(map, ttl || CACHE_TTL);
-    c.put(key, 'chunks:' + n, ttl || CACHE_TTL);
+    c.putAll(map, ttl);
+    c.put(key, 'chunks:' + n, ttl);
   } catch (e) {
     console.warn('Cache put failed: ' + e);
   }
 }
 
+/** true trong warmCache(): bỏ qua cache cũ, tính lại và ghi đè (không có khoảng trống cache). */
+let _forceRefresh = false;
+
 function withCache_(key, fn) {
   const k = key + ':' + CACHE_VERSION;
-  const hit = cacheGetJson_(k);
+  const hit = _forceRefresh ? null : cacheGetJson_(k);
   if (hit !== null) return hit;
   const value = fn();
   cachePutJson_(k, value);

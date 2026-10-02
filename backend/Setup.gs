@@ -61,6 +61,13 @@ function setup() {
     if (!HEADERS[sh.getName()] && sh.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(sh);
   });
 
+  // Mọi ảnh phải nằm trên Drive: chuyển ảnh mẫu (Unsplash) vào thư mục ảnh của shop
+  try {
+    migrateImagesToDrive();
+  } catch (e) {
+    console.warn('Chưa chuyển được ảnh mẫu vào Drive: ' + e.message + ' — chạy lại migrateImagesToDrive() sau.');
+  }
+
   clearCache_();
   console.log('Setup hoàn tất.');
 }
@@ -119,6 +126,7 @@ function sampleSettings_() {
     seo_title: 'Hoa Mộc — Hoa tươi thiết kế, giao nhanh 2h',
     seo_description: 'Shop hoa tươi Hoa Mộc: bó hoa, lẵng hoa, hoa khai trương, hoa sinh nhật thiết kế tinh tế. Giao nhanh 2h nội thành, tặng thiệp miễn phí.',
     notify_email: '',
+    about_image: 'https://images.unsplash.com/photo-1487530811176-3780de880c2d?auto=format&fit=crop&w=1600&h=900&q=80',
   };
   return Object.keys(s).map(function (k) { return { key: k, value: s[k] }; });
 }

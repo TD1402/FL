@@ -93,13 +93,27 @@ const PREP_HOURS = 2;
 
 /** Settings KHÔNG trả về cho khách (chỉ admin thấy). */
 const PRIVATE_SETTINGS = ['notify_email'];
+/** Settings là ảnh → luôn lưu trên Drive. */
+const IMAGE_SETTINGS = ['og_image', 'about_image'];
 
-const CACHE_TTL = 600; // giây
+const CACHE_TTL = 600; // giây — khi chưa cài trigger
+/** Đã cài trigger (installTriggers): cache tự làm mới khi sửa Sheet + mỗi 10 phút → giữ cache tối đa 6 giờ. */
+const CACHE_TTL_WITH_TRIGGERS = 21600;
 /** Tăng khi đổi cấu trúc dữ liệu trả về → cache của bản deploy cũ tự bị bỏ qua. */
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_KEYS = ['products_all', 'categories_all', 'settings_all', 'banners_all'];
 const TOKEN_TTL_DAYS = 7;
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Thư mục Drive gốc chứa ảnh (upload vào đây, chọn ảnh từ đây). Mỗi sản phẩm một thư mục con theo slug.
+ * Muốn đổi thư mục: đặt Script Property IMAGE_FOLDER_ID.
+ * (DRIVE_FOLDER_ID cũ KHÔNG còn dùng: bản đầu tự tạo "FlowerShop Images" và lưu vào đó.)
+ */
+const DEFAULT_DRIVE_FOLDER_ID = '1OhMhpS2DmZFW5WUyeSBRqcBlpMEoYcj5';
+const LEGACY_FOLDER_NAME = 'FlowerShop Images';
+/** Ảnh upload không rõ sản phẩm → thư mục này (không bao giờ để lẫn ở thư mục gốc). */
+const UNSORTED_FOLDER = 'chua-phan-loai';
 
 function getProp_(key) {
   return PropertiesService.getScriptProperties().getProperty(key) || '';

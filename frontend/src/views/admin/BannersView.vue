@@ -29,6 +29,7 @@ const positionLabel = (v) => POSITIONS.find((p) => p.value === v)?.label || v
 <template>
   <ResourceManager
     resource="banners"
+    upload-folder="banner"
     title="Banner"
     item-label="banner"
     :columns="columns"

@@ -86,7 +86,8 @@ function cleanItem_(resource, item, existing) {
     it.name = requireText_(it.name, 'tên sản phẩm', 200);
     it.slug = uniqueSlug_(SHEETS.PRODUCTS, slugify_(it.slug || it.name), existing && existing.id);
     if (!it.sku) it.sku = 'HM' + String(Date.now()).slice(-6);
-    if ('images' in it) it.images = splitList_(it.images).map(normalizeImageUrl_);
+    // Mọi ảnh đều lưu trên Drive: link ngoài được tải về thư mục con theo slug sản phẩm
+    if ('images' in it) it.images = splitList_(it.images).map(function (u) { return ensureDriveImage_(u, it.slug); });
     ['category_ids', 'images', 'colors', 'flowers', 'tags'].forEach(function (k) {
       if (k in it) it[k] = splitList_(it[k]).join(',');
     });
@@ -108,12 +109,12 @@ function cleanItem_(resource, item, existing) {
     it.name = requireText_(it.name, 'tên danh mục', 100);
     it.slug = uniqueSlug_(SHEETS.CATEGORIES, slugify_(it.slug || it.name), existing && existing.id);
     if (existing && it.parent_id === existing.id) throw new Error('Danh mục cha không hợp lệ');
-    it.image = normalizeImageUrl_(it.image);
+    it.image = ensureDriveImage_(it.image, IMAGE_FOLDERS.categories);
   }
 
   if (resource === 'banners') {
-    it.image = normalizeImageUrl_(requireText_(it.image, 'ảnh banner', 1000));
-    it.image_mobile = normalizeImageUrl_(it.image_mobile);
+    it.image = ensureDriveImage_(requireText_(it.image, 'ảnh banner', 1000), IMAGE_FOLDERS.banners);
+    it.image_mobile = ensureDriveImage_(it.image_mobile, IMAGE_FOLDERS.banners);
     if (['hero', 'promo', 'collection'].indexOf(it.position) < 0) it.position = 'hero';
   }
 
@@ -180,15 +181,54 @@ function adminDelete(data) {
 
 /* -------------------------- Upload ảnh -------------------------- */
 
-function getUploadFolder_() {
-  const id = getProp_('DRIVE_FOLDER_ID');
-  if (id) return DriveApp.getFolderById(id);
-  const folder = DriveApp.createFolder('FlowerShop Images');
-  setProp_('DRIVE_FOLDER_ID', folder.getId());
-  return folder;
+function getRootFolder_() {
+  return DriveApp.getFolderById(getProp_('IMAGE_FOLDER_ID') || DEFAULT_DRIVE_FOLDER_ID);
 }
 
-/** POST uploadImage {filename, mimeType, base64} → {id, url} */
+/** Thư mục con (theo slug) của thư mục `parent` — chưa có thì tạo. */
+function childFolder_(parent, name) {
+  const it = parent.getFoldersByName(name);
+  return it.hasNext() ? it.next() : parent.createFolder(name);
+}
+
+/** Thư mục lưu ảnh: thư mục gốc / <slug>. Thiếu slug → chua-phan-loai (không để lẫn ở thư mục gốc). */
+function getUploadFolder_(sub) {
+  return childFolder_(getRootFolder_(), slugify_(sub).slice(0, 80) || UNSORTED_FOLDER);
+}
+
+/**
+ * Thư mục đang chứa ảnh của sản phẩm (thư mục con trực tiếp của thư mục gốc), nếu có.
+ * Giữ đúng cách bạn tự đặt tên thư mục (vd sản phẩm "bo-bach-dan" có ảnh trong "bach-dan/").
+ */
+function productFolder_(productId) {
+  const p = productId && findBy(SHEETS.PRODUCTS, 'id', productId);
+  if (!p) return null;
+  const rootId = getRootFolder_().getId();
+  const ids = splitList_(p.images)
+    .map(function (u) { const m = String(u).match(DRIVE_ID_RE); return m && m[1]; })
+    .filter(Boolean)
+    .slice(0, 5);
+  for (let i = 0; i < ids.length; i++) {
+    try {
+      const parents = DriveApp.getFileById(ids[i]).getParents();
+      if (!parents.hasNext()) continue;
+      const parent = parents.next();
+      if (parent.getName() === UNSORTED_FOLDER) continue;
+      const gp = parent.getParents();
+      if (gp.hasNext() && gp.next().getId() === rootId) return parent;
+    } catch (e) {
+      /* ảnh không truy cập được → thử ảnh khác */
+    }
+  }
+  return null;
+}
+
+/** Thư mục đích khi upload/nhập ảnh: thư mục ảnh hiện có của sản phẩm → thư mục theo slug → chua-phan-loai. */
+function resolveImageFolder_(data) {
+  return productFolder_(str_(data.productId, 50)) || getUploadFolder_(str_(data.folder, 100));
+}
+
+/** POST uploadImage {filename, mimeType, base64, folder?} → {id, url}. folder: slug thư mục con (vd slug sản phẩm). */
 function uploadImage(data) {
   const mime = str_(data.mimeType, 50);
   if (!/^image\/(jpeg|png|webp|gif)$/.test(mime)) throw new Error('Chỉ hỗ trợ ảnh JPG, PNG, WEBP, GIF');
@@ -198,9 +238,57 @@ function uploadImage(data) {
   if (bytes.length > MAX_UPLOAD_BYTES) throw new Error('Ảnh vượt quá 5MB');
   const name = slugify_(str_(data.filename, 100).replace(/\.[^.]+$/, '')) || 'image';
   const blob = Utilities.newBlob(bytes, mime, Date.now() + '-' + name);
-  const file = getUploadFolder_().createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const file = resolveImageFolder_(data).createFile(blob);
+  ensurePublic_(file);
   return { id: file.getId(), url: 'https://lh3.googleusercontent.com/d/' + file.getId() + '=w1000' };
+}
+
+/** Thư mục có nằm trong thư mục gốc không (chặn duyệt Drive ngoài phạm vi). Trả về đường dẫn từ gốc. */
+function folderPath_(folder, rootId) {
+  const path = [];
+  let cur = folder;
+  for (let depth = 0; depth < 8 && cur; depth++) {
+    path.unshift({ id: cur.getId(), name: cur.getName() });
+    if (cur.getId() === rootId) return path;
+    const parents = cur.getParents();
+    cur = parents.hasNext() ? parents.next() : null;
+  }
+  return null;
+}
+
+/**
+ * POST listDriveImages {folderId?, productId?} → (không có folderId: mở thư mục ảnh của sản phẩm nếu có) { folder, path, folders: [{id, name}], images: [{id, name, url, created}] }
+ * Duyệt ảnh trong thư mục gốc và các thư mục con để chọn vào sản phẩm/banner.
+ */
+function listDriveImages(data) {
+  const root = getRootFolder_();
+  const own = !data.folderId && productFolder_(str_(data.productId, 50));
+  const folder = data.folderId ? DriveApp.getFolderById(str_(data.folderId, 100)) : own || root;
+  const path = folderPath_(folder, root.getId());
+  if (!path) throw new Error('Thư mục không thuộc thư mục ảnh của shop');
+
+  const folders = [];
+  const fit = folder.getFolders();
+  while (fit.hasNext()) {
+    const f = fit.next();
+    folders.push({ id: f.getId(), name: f.getName() });
+  }
+  folders.sort(function (a, b) { return a.name.localeCompare(b.name, 'vi'); });
+
+  const images = [];
+  const it = folder.getFiles();
+  while (it.hasNext() && images.length < 300) {
+    const f = it.next();
+    if (String(f.getMimeType()).indexOf('image/') !== 0) continue;
+    images.push({
+      id: f.getId(),
+      name: f.getName(),
+      url: 'https://lh3.googleusercontent.com/d/' + f.getId() + '=w1000',
+      created: f.getDateCreated().toISOString(),
+    });
+  }
+  images.sort(function (a, b) { return a.name.localeCompare(b.name, 'vi', { numeric: true }); });
+  return { folder: path[path.length - 1], path: path, folders: folders, images: images };
 }
 
 /* --------------------------- Dashboard --------------------------- */

@@ -24,6 +24,8 @@ const props = defineProps({
   defaults: { type: Function, default: () => ({ is_active: true }) },
   /** Khoá do người dùng nhập (vd mã coupon) → gửi create: true để chặn trùng. */
   userKey: Boolean,
+  /** Thư mục con trên Drive cho ảnh của bảng này (vd 'banner', 'danh-muc') */
+  uploadFolder: { type: String, default: '' },
 })
 
 const emit = defineEmits(['saved'])
@@ -46,6 +48,7 @@ const open = ref(false)
 const editing = ref({})
 const isNew = ref(true)
 const saving = ref(false)
+const uploadingImages = ref(false)
 
 function create() {
   editing.value = props.defaults()
@@ -200,6 +203,8 @@ defineExpose({ reload: () => list.run() })
               v-else-if="f.type === 'image'"
               v-model="imageModels[f.key].value"
               :multiple="false"
+              :folder="uploadFolder"
+              @busy="uploadingImages = $event"
             />
             <input
               v-else
@@ -214,7 +219,9 @@ defineExpose({ reload: () => list.run() })
         </div>
         <div class="flex justify-end gap-3 pt-2 sm:col-span-2">
           <button type="button" class="btn-outline h-10 px-5" @click="open = false">Huỷ</button>
-          <button class="btn-primary h-10 px-6" :disabled="saving">{{ saving ? 'Đang lưu…' : 'Lưu' }}</button>
+          <button class="btn-primary h-10 px-6" :disabled="saving || uploadingImages">
+            {{ uploadingImages ? 'Đang tải ảnh…' : saving ? 'Đang lưu…' : 'Lưu' }}
+          </button>
         </div>
       </form>
     </AppModal>

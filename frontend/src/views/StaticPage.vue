@@ -12,6 +12,8 @@ import { STATIC_PAGES } from './staticPages'
 const props = defineProps({ pageKey: { type: String, required: true } })
 const settings = useSettingsStore()
 const page = computed(() => STATIC_PAGES[props.pageKey])
+/** Ảnh trang lấy từ Settings (ảnh lưu trên Google Drive) */
+const image = computed(() => (page.value.imageSetting ? settings.data[page.value.imageSetting] : '') || '')
 
 const escape = (s) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
@@ -32,7 +34,7 @@ const route = useRoute()
 useSeo(() => ({
   title: page.value.title,
   description: html.value,
-  image: page.value.image,
+  image: image.value,
   jsonLd: [breadcrumbSchema([{ name: page.value.title, path: route.path }], siteUrl())],
 }))
 </script>
@@ -40,8 +42,8 @@ useSeo(() => ({
 <template>
   <article class="pb-16">
     <AppImage
-      v-if="page.image"
-      :src="page.image"
+      v-if="image"
+      :src="image"
       :alt="page.title"
       ratio="16/7"
       :width="1600"

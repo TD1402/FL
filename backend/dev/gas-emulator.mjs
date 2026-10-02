@@ -65,14 +65,67 @@ export function createGas({ dataFile } = {}) {
   }
 
   const mails = []
+  const fetches = []
   const uploads = {}
-  const folder = {
-    getId: () => 'dev-folder',
-    createFile(blob) {
-      const id = crypto.randomUUID().replace(/-/g, '')
-      uploads[id] = { buffer: Buffer.from(blob.bytes.map((b) => b & 0xff)), mime: blob.mime }
-      return { getId: () => id, setSharing: () => {} }
-    },
+  /* Drive giả lập: cây thư mục trong bộ nhớ. Thư mục gốc dùng mọi ID được yêu cầu lần đầu. */
+  const driveFolders = new Map() // id → { id, name, parent }
+  /** Mô phỏng: thư mục gốc đã chia sẻ công khai chưa; setSharing từng file có bị Google từ chối không */
+  const driveSettings = { rootSharing: 'PRIVATE', setSharingFails: false }
+  const iter = (list) => {
+    let i = 0
+    return { hasNext: () => i < list.length, next: () => list[i++] }
+  }
+  function folderApi(id) {
+    const f = driveFolders.get(id)
+    if (!f) throw new Error('Không tìm thấy thư mục: ' + id)
+    return {
+      getId: () => f.id,
+      getName: () => f.name,
+      getParents: () => iter(f.parent ? [folderApi(f.parent)] : []),
+      getFolders: () => iter([...driveFolders.values()].filter((x) => x.parent === id).map((x) => folderApi(x.id))),
+      getFoldersByName: (name) =>
+        iter([...driveFolders.values()].filter((x) => x.parent === id && x.name === name).map((x) => folderApi(x.id))),
+      createFolder: (name) => folderApi(addFolder(name, id)),
+      getFiles: () => iter(Object.keys(uploads).filter((fid) => uploads[fid].folder === id).map(fileApi)),
+      moveTo: (dest) => {
+        f.parent = dest.getId()
+        return folderApi(id)
+      },
+      getSharingAccess: () => driveSettings.rootSharing,
+      createFile(blob) {
+        const fid = crypto.randomUUID().replace(/-/g, '')
+        uploads[fid] = {
+          buffer: Buffer.from(blob.bytes.map((b) => b & 0xff)),
+          mime: blob.mime,
+          name: blob.name,
+          folder: id,
+          created: new Date(),
+        }
+        return fileApi(fid)
+      },
+    }
+  }
+  function fileApi(fid) {
+    const u = uploads[fid]
+    if (!u) throw new Error('Không tìm thấy file: ' + fid)
+    return {
+      getId: () => fid,
+      getName: () => u.name,
+      getMimeType: () => u.mime,
+      getDateCreated: () => u.created,
+      getParents: () => iter(u.folder ? [folderApi(u.folder)] : []),
+      moveTo: (dest) => {
+        u.folder = dest.getId()
+        return fileApi(fid)
+      },
+      setSharing: () => {
+        if (driveSettings.setSharingFails) throw new Error('Truy cập bị từ chối: DriveApp.')
+      },
+    }
+  }
+  function addFolder(name, parent, id = crypto.randomUUID().replace(/-/g, '')) {
+    driveFolders.set(id, { id, name, parent })
+    return id
   }
 
   function makeRange(name, row, col, nr = 1, nc = 1) {
@@ -152,6 +205,7 @@ export function createGas({ dataFile } = {}) {
       getScriptProperties: () => ({
         getProperty: (k) => db.props[k] ?? null,
         setProperty: (k, v) => (db.props[k] = String(v)),
+        deleteProperty: (k) => delete db.props[k],
       }),
     },
     Session: {
@@ -172,12 +226,33 @@ export function createGas({ dataFile } = {}) {
       createTextOutput: (content) => ({ content, setMimeType() { return this } }),
     },
     MailApp: { sendEmail: (m) => mails.push(m) },
-    UrlFetchApp: { fetch: () => ({ getResponseCode: () => 200 }) },
+    UrlFetchApp: {
+      // Giả lập tải ảnh từ web: URL chứa "notimage" → HTML, "missing" → 404, còn lại → JPEG nhỏ
+      fetch: (url) => {
+        fetches.push(url)
+        const code = /missing/.test(url) ? 404 : 200
+        const mime = /notimage/.test(url) ? 'text/html' : 'image/jpeg'
+        const blob = {
+          bytes: toSigned(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16])),
+          mime,
+          name: 'download',
+          getBytes() { return this.bytes },
+          getContentType: () => mime,
+          setName(n) { this.name = n; return this },
+        }
+        return { getResponseCode: () => code, getBlob: () => blob }
+      },
+    },
     DriveApp: {
-      Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
+      Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK', ANYONE: 'ANYONE', PRIVATE: 'PRIVATE' },
       Permission: { VIEW: 'VIEW' },
-      createFolder: () => folder,
-      getFolderById: () => folder,
+      createFolder: (name) => folderApi(addFolder(name, null)),
+      getFileById: (fid) => fileApi(fid),
+      getFoldersByName: (name) => iter([...driveFolders.values()].filter((x) => x.name === name).map((x) => folderApi(x.id))),
+      getFolderById: (id) => {
+        if (!driveFolders.size) addFolder('Ảnh shop (dev)', null, id) // thư mục gốc
+        return folderApi(id)
+      },
     },
   })
 
@@ -195,7 +270,10 @@ export function createGas({ dataFile } = {}) {
   return {
     context,
     mails,
+    fetches,
     uploads,
+    driveFolders,
+    driveSettings,
     db,
     run(fnName, ...args) {
       resetExecution()

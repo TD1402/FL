@@ -35,6 +35,10 @@ const ADMIN_POST_ROUTES = {
   adminDelete: function (d) { return adminDelete(d); },
   updateOrderStatus: function (d) { return updateOrderStatus(d); },
   uploadImage: function (d) { return uploadImage(d); },
+  listDriveImages: function (d) { return listDriveImages(d); },
+  importImageUrl: function (d) { return importImageUrl(d); },
+  migrateImages: function () { return migrateImagesToDrive(); },
+  reorganizeImages: function () { return reorganizeDriveImages(); },
   getDashboard: function (d) { return getDashboard(d); },
 };
 
