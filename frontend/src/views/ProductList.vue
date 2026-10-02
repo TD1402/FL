@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProducts } from '@/api/shop'
 import { useSettingsStore } from '@/stores/settings'
-import { useSeo } from '@/composables/useSeo'
+import { siteUrl, useSeo } from '@/composables/useSeo'
+import { breadcrumbSchema, categoryDescription, itemListSchema } from '@/seo/schema'
 import AppBreadcrumb from '@/components/ui/AppBreadcrumb.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppModal from '@/components/ui/AppModal.vue'
@@ -90,11 +91,28 @@ const crumbs = computed(() => {
   return out
 })
 
-useSeo(() => ({
-  title: title.value,
-  description: `${title.value} — hoa tươi thiết kế, giao nhanh 2h tại ${settings.shopName}.`,
-  noindex: props.mode === 'search',
-}))
+/** Bộ sưu tập truy cập được qua cả /danh-muc/:slug và /bo-suu-tap/:slug → canonical về /bo-suu-tap. */
+const canonicalPath = computed(() => {
+  if (props.mode === 'category' && parent.value?.slug === 'bo-suu-tap') return `/bo-suu-tap/${props.slug}`
+  return route.path
+})
+useSeo(() => {
+  const name = props.mode === 'all' ? 'Hoa tươi' : title.value
+  return {
+    title: title.value,
+    description: categoryDescription(name, settings.shopName),
+    image: items.value[0]?.images?.[0],
+    path: canonicalPath.value,
+    noindex: props.mode === 'search' || (props.mode !== 'all' && !!error.value),
+    jsonLd: [
+      breadcrumbSchema(
+        crumbs.value.map((c) => ({ name: c.label, path: c.to || canonicalPath.value })),
+        siteUrl(),
+      ),
+      items.value.length ? itemListSchema(items.value, siteUrl()) : null,
+    ],
+  }
+})
 
 function buildParams(p) {
   const f = filters.value

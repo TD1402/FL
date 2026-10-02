@@ -133,7 +133,21 @@ Có thể bật proxy Vite khi dev bằng `VITE_USE_PROXY=true`, nhưng producti
 
 ---
 
-## 4. Ghi chú nghiệp vụ
+## 4. SEO
+
+- **Meta mỗi trang** (`src/composables/useSeo.js`): title `Tên trang | Shop`, description ≤ 160 ký tự, canonical (bỏ query lọc/sắp xếp), robots, Open Graph (`og:locale vi_VN`, `og:type product` cho sản phẩm, giá `product:price:*`), Twitter card.
+- **JSON-LD** (`src/seo/schema.js`): `Florist` (thông tin cửa hàng, giờ mở cửa, MXH), `WebSite` + ô tìm kiếm, `BreadcrumbList`, `ItemList` cho danh mục, `Product` + `Offer`/`AggregateOffer` (giá theo size, tình trạng hàng).
+- **Prerender lúc build** (`scripts/seo-build.mjs`, chạy tự động trong `npm run build`): lấy dữ liệu thật từ API, sinh HTML tĩnh cho trang chủ, danh mục, bộ sưu tập, sản phẩm, trang chính sách. Mỗi file có sẵn meta, JSON-LD và nội dung chính, nên Facebook/Zalo/Google đọc được mà không cần chạy JS. Script cũng tạo `sitemap.xml` (kèm ảnh) và `robots.txt` (chặn admin/giỏ hàng/thanh toán…).
+  - **Bắt buộc đặt `VITE_SITE_URL`** = tên miền thật (ví dụ `https://hoamoc.vn`) trên nền tảng deploy. Nếu thiếu, script chỉ tạo `robots.txt`.
+  - Sản phẩm mới thêm vào Sheet chỉ có trang prerender sau khi **build lại**; trước đó trang vẫn hoạt động bình thường dưới dạng SPA. Có thể tạo Deploy Hook trên Vercel/Netlify để build lại định kỳ hoặc sau khi cập nhật hàng.
+  - Route không prerender (giỏ hàng, admin…) dùng `app.html` làm fallback (đã cấu hình trong `vercel.json`, `public/_redirects`).
+- **Admin → Cài đặt → SEO**: tiêu đề, mô tả mặc định, ảnh chia sẻ mặc định (`og_image`, 1200×630).
+- Sau khi deploy: khai báo `https://<tên-miền>/sitemap.xml` trong Google Search Console; kiểm tra bằng Rich Results Test và Facebook Sharing Debugger.
+- Không nên dùng `VITE_ROUTER_MODE=hash` (GitHub Pages) nếu cần SEO: URL dạng `/#/…` không được index riêng từng trang.
+
+---
+
+## 5. Ghi chú nghiệp vụ
 
 - **Giá cuối** = `sale_price` (nếu > 0 và < `price`), ngược lại = `price`. Nếu sản phẩm có `sizes` thì dùng giá của size đã chọn.
 - **createOrder** đọc lại sheet Products trong `LockService`: tính lại giá, kiểm tra tồn kho, áp coupon, trừ kho, tăng `used_count`, sinh mã `HOA` + `yyMMdd` + số thứ tự 4 chữ số. Giá gửi từ client bị bỏ qua.

@@ -8,7 +8,10 @@ import { isPhone } from '@/utils/validate'
 import OrderSummary from '@/components/shop/OrderSummary.vue'
 import BankTransfer from '@/components/shop/BankTransfer.vue'
 
-useSeo(() => ({ title: 'Tra cứu đơn hàng' }))
+useSeo(() => ({
+  title: 'Tra cứu đơn hàng',
+  description: 'Tra cứu trạng thái đơn hoa bằng mã đơn hàng và số điện thoại.',
+}))
 const route = useRoute()
 const form = reactive({ code: String(route.query.code || ''), phone: '' })
 const order = ref(null)

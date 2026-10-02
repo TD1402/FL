@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useSeo } from '@/composables/useSeo'
 
-useSeo(() => ({ title: 'Đăng nhập quản trị', noindex: true }))
+useSeo(() => ({ title: 'Đăng nhập quản trị', private: true }))
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()

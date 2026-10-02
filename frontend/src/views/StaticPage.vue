@@ -1,7 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
-import { useSeo } from '@/composables/useSeo'
+import { siteUrl, useSeo } from '@/composables/useSeo'
+import { breadcrumbSchema } from '@/seo/schema'
+import { useRoute } from 'vue-router'
 import { formatPrice } from '@/utils/format'
 import AppBreadcrumb from '@/components/ui/AppBreadcrumb.vue'
 import AppImage from '@/components/ui/AppImage.vue'
@@ -26,7 +28,13 @@ const html = computed(() => {
   return page.value.html.replace(/\{(\w+)\}/g, (_, k) => escape(vars[k] ?? ''))
 })
 
-useSeo(() => ({ title: page.value.title }))
+const route = useRoute()
+useSeo(() => ({
+  title: page.value.title,
+  description: html.value,
+  image: page.value.image,
+  jsonLd: [breadcrumbSchema([{ name: page.value.title, path: route.path }], siteUrl())],
+}))
 </script>
 
 <template>

@@ -2,7 +2,8 @@
 import { computed } from 'vue'
 import { getBanners, getProducts } from '@/api/shop'
 import { useAsync } from '@/composables/useAsync'
-import { useSeo } from '@/composables/useSeo'
+import { siteUrl, useSeo } from '@/composables/useSeo'
+import { floristSchema, websiteSchema } from '@/seo/schema'
 import { useSettingsStore } from '@/stores/settings'
 import AppImage from '@/components/ui/AppImage.vue'
 import HeroSlider from '@/components/shop/HeroSlider.vue'
@@ -11,7 +12,6 @@ import SectionHeading from '@/components/shop/SectionHeading.vue'
 import CommitmentStrip from '@/components/shop/CommitmentStrip.vue'
 import NewsletterForm from '@/components/shop/NewsletterForm.vue'
 
-useSeo(() => ({}))
 const settings = useSettingsStore()
 
 const banners = useAsync(() => getBanners(), { immediate: true, initial: [] })
@@ -29,6 +29,12 @@ const collections = byPosition('collection')
 const styles = byPosition('promo')
 const occasions = computed(() => settings.occasions.filter((c) => c.image))
 
+useSeo(() => ({
+  path: '/',
+  image: settings.data.og_image || hero.value[0]?.image,
+  jsonLd: [floristSchema(settings.data, siteUrl()), websiteSchema(settings.data, siteUrl())],
+}))
+
 const isInternal = (link) => link && link.startsWith('/')
 const linkTag = (link) => (isInternal(link) ? 'RouterLink' : 'a')
 const linkAttrs = (link) => (isInternal(link) ? { to: link } : { href: link || '#' })
@@ -36,6 +42,7 @@ const linkAttrs = (link) => (isInternal(link) ? { to: link } : { href: link || '
 
 <template>
   <div>
+    <h1 class="sr-only">{{ settings.data.seo_title || settings.shopName }}</h1>
     <HeroSlider :banners="hero" :loading="banners.loading.value" />
 
     <!-- HOA MỚI -->

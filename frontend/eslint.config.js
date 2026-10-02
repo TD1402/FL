@@ -16,5 +16,5 @@ export default [
       'vue/require-default-prop': 'off',
     },
   },
-  { files: ['*.config.js'], languageOptions: { globals: { ...globals.node } } },
+  { files: ['*.config.js', 'scripts/**'], languageOptions: { globals: { ...globals.node } } },
 ]

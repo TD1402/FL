@@ -8,6 +8,9 @@ import { configureAuth } from './api/client'
 import { useAuthStore } from './stores/auth'
 import './assets/main.css'
 
+// HTML prerender lúc build (meta + nội dung tĩnh cho crawler) → để Vue/unhead quản lý từ đây.
+document.querySelectorAll('[data-prerender]').forEach((el) => el.remove())
+
 const app = createApp(App)
 const pinia = createPinia()
 pinia.use(piniaPersist)

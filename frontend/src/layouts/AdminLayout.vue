@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useSeo } from '@/composables/useSeo'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
-useSeo(() => ({ title: 'Quản trị', noindex: true }))
+useSeo(() => ({ title: 'Quản trị', private: true }))
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()

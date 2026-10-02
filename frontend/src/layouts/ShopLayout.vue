@@ -1,7 +1,6 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
-import { useSeo } from '@/composables/useSeo'
 import TopBar from '@/components/shop/TopBar.vue'
 import AppHeader from '@/components/shop/AppHeader.vue'
 import AppFooter from '@/components/shop/AppFooter.vue'
@@ -13,7 +12,6 @@ import PromoPopup from '@/components/shop/PromoPopup.vue'
 
 const settings = useSettingsStore()
 onMounted(() => settings.load())
-useSeo(() => ({}))
 </script>
 
 <template>

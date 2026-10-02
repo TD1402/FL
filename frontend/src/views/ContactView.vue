@@ -2,13 +2,18 @@
 import { reactive, ref } from 'vue'
 import { submitContact } from '@/api/shop'
 import { useSettingsStore } from '@/stores/settings'
-import { useSeo } from '@/composables/useSeo'
+import { siteUrl, useSeo } from '@/composables/useSeo'
+import { floristSchema } from '@/seo/schema'
 import { toast } from '@/composables/useToast'
 import { isPhone } from '@/utils/validate'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
-useSeo(() => ({ title: 'Liên hệ', description: 'Liên hệ đặt hoa theo yêu cầu, hoa sự kiện, hoa cưới.' }))
 const settings = useSettingsStore()
+useSeo(() => ({
+  title: 'Liên hệ đặt hoa',
+  description: `Liên hệ ${settings.shopName} đặt hoa theo yêu cầu, hoa sự kiện, hoa cưới. Hotline ${settings.data.hotline || ''} · ${settings.data.address || ''}`,
+  jsonLd: [floristSchema(settings.data, siteUrl())],
+}))
 const form = reactive({ name: '', phone: '', message: '', website: '' })
 const errors = reactive({})
 const loading = ref(false)

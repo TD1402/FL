@@ -1,12 +1,12 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useHead } from '@unhead/vue'
 import { getProduct } from '@/api/shop'
 import { useCartStore } from '@/stores/cart'
 import { useWishlistStore } from '@/stores/wishlist'
 import { useSettingsStore } from '@/stores/settings'
-import { useSeo } from '@/composables/useSeo'
+import { siteUrl, useSeo } from '@/composables/useSeo'
+import { breadcrumbSchema, productDescription, productSchema } from '@/seo/schema'
 import { toast } from '@/composables/useToast'
 import { formatPrice } from '@/utils/format'
 import { comparePrice, discountPercent, finalPrice } from '@/utils/product'
@@ -65,40 +65,29 @@ const primaryCategory = computed(() =>
   settings.flatCategories.find((c) => product.value?.category_ids?.includes(c.id) && c.depth > 0),
 )
 
-useSeo(() => ({
-  title: product.value?.name || (error.value ? 'Không tìm thấy sản phẩm' : ''),
-  description: product.value?.short_desc,
-  image: product.value?.images?.[0],
-}))
-useHead(
-  computed(() =>
-    product.value
-      ? {
-          script: [
-            {
-              type: 'application/ld+json',
-              innerHTML: JSON.stringify({
-                '@context': 'https://schema.org',
-                '@type': 'Product',
-                name: product.value.name,
-                image: product.value.images,
-                sku: product.value.sku,
-                description: product.value.short_desc,
-                offers: {
-                  '@type': 'Offer',
-                  priceCurrency: 'VND',
-                  price: price.value,
-                  availability: soldOut.value
-                    ? 'https://schema.org/OutOfStock'
-                    : 'https://schema.org/InStock',
-                },
-              }),
-            },
-          ],
-        }
-      : {},
-  ),
-)
+useSeo(() => {
+  const p = product.value
+  if (!p) return { title: error.value ? 'Không tìm thấy sản phẩm' : '', noindex: !!error.value }
+  const crumbs = [
+    ...(primaryCategory.value
+      ? [{ name: primaryCategory.value.name, path: `/danh-muc/${primaryCategory.value.slug}` }]
+      : []),
+    { name: p.name, path: `/san-pham/${p.slug}` },
+  ]
+  return {
+    title: p.name,
+    description: productDescription(p, settings.shopName),
+    image: p.images?.[0],
+    path: `/san-pham/${p.slug}`,
+    type: 'product',
+    meta: [
+      { property: 'product:price:amount', content: String(price.value) },
+      { property: 'product:price:currency', content: 'VND' },
+      { property: 'product:availability', content: soldOut.value ? 'out of stock' : 'in stock' },
+    ],
+    jsonLd: [productSchema(p, siteUrl(), settings.shopName), breadcrumbSchema(crumbs, siteUrl())],
+  }
+})
 
 function saveDelivery() {
   cart.delivery = {

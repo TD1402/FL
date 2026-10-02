@@ -50,6 +50,7 @@ const GROUPS = [
     fields: [
       ['seo_title', 'Tiêu đề mặc định', true],
       ['seo_description', 'Mô tả mặc định', true],
+      ['og_image', 'Ảnh chia sẻ mặc định (Facebook/Zalo, 1200×630)', true],
     ],
   },
 ]
