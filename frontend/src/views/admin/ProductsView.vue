@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import { adminDelete, adminList, adminSave } from '@/api/admin'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { formatPrice } from '@/utils/format'
-import { comparePrice, fromPrice } from '@/utils/product'
+import { comparePrice, fromPrice, resizeImage } from '@/utils/product'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
 
@@ -97,7 +97,7 @@ async function restore(p) {
             <td class="px-4 py-3">
               <RouterLink :to="`/admin/san-pham/${p.id}`" class="flex items-center gap-3 hover:text-accent">
                 <img
-                  :src="p.images[0]"
+                  :src="resizeImage(p.images[0], 200)"
                   alt=""
                   class="h-14 w-11 shrink-0 bg-mist object-cover"
                   loading="lazy"

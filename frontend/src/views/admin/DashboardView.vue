@@ -1,4 +1,5 @@
 <script setup>
+import { resizeImage } from '@/utils/product'
 import { getDashboard } from '@/api/admin'
 import { useAsync } from '@/composables/useAsync'
 import { formatDateTime, formatPrice } from '@/utils/format'
@@ -76,7 +77,7 @@ const { data, loading, error, run } = useAsync(getDashboard, { immediate: true }
               class="flex items-center gap-3 text-sm"
             >
               <span class="w-4 text-muted">{{ i + 1 }}</span>
-              <img :src="p.image" alt="" class="h-12 w-10 bg-mist object-cover" />
+              <img :src="resizeImage(p.image, 200)" alt="" class="h-12 w-10 bg-mist object-cover" />
               <span class="flex-1 truncate">{{ p.name }}</span>
               <span class="text-muted">{{ p.qty }} sp</span>
               <span class="w-28 text-right font-medium">{{ formatPrice(p.revenue) }}</span>

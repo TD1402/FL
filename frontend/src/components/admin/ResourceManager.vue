@@ -1,4 +1,5 @@
 <script setup>
+import { resizeImage } from '@/utils/product'
 import { computed, ref } from 'vue'
 import { adminDelete, adminList, adminSave } from '@/api/admin'
 import { useAsync } from '@/composables/useAsync'
@@ -142,12 +143,13 @@ defineExpose({ reload: () => list.run() })
             <td v-for="c in columns" :key="c.key" class="px-4 py-3 align-middle">
               <slot :name="`cell-${c.key}`" :row="row">
                 <img
-                  v-if="c.type === 'image'"
-                  :src="row[c.key]"
+                  v-if="c.type === 'image' && row[c.key]"
+                  :src="resizeImage(row[c.key], 200)"
                   alt=""
                   class="h-14 w-12 bg-mist object-cover"
                   loading="lazy"
                 />
+                <span v-else-if="c.type === 'image'" class="block h-14 w-12 bg-mist" />
                 <span v-else-if="c.type === 'bool'">{{ row[c.key] ? '✓' : '—' }}</span>
                 <span v-else-if="c.type === 'money'">{{ row[c.key] ? formatPrice(row[c.key]) : '—' }}</span>
                 <span v-else>{{ row[c.key] }}</span>

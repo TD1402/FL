@@ -1,4 +1,5 @@
 <script setup>
+import { resizeImage } from '@/utils/product'
 import { computed, onMounted, ref } from 'vue'
 import { adminGet, updateOrderStatus } from '@/api/admin'
 import { useSettingsStore } from '@/stores/settings'
@@ -144,7 +145,11 @@ const print = () => window.print()
             <tr v-for="it in order.items" :key="it.product_id + it.size">
               <td class="py-3">
                 <div class="flex items-center gap-3">
-                  <img :src="it.image" alt="" class="h-12 w-10 bg-mist object-cover print:hidden" />
+                  <img
+                    :src="resizeImage(it.image, 200)"
+                    alt=""
+                    class="h-12 w-10 bg-mist object-cover print:hidden"
+                  />
                   <span
                     >{{ it.name }} <span class="block text-xs text-muted">{{ it.sku }}</span></span
                   >
